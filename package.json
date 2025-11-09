@@ -21,9 +21,9 @@ const {
   STRAT_COOLDOWN_SEC = '900',
 
   // Coinbase (fill when ready)
-  COINBASE_API_KEY,
-  COINBASE_API_SECRET,
-  COINBASE_API_PASSPHRASE
+  COINBASE_API_KEY = organizations/e1c8e267-7aa6-4b58-81e2-5f1522f5a081/apiKeys/6c76744d-9980-40fc-bf8d-e02fd79066fd
+  COINBASE_API_SECRET = organizations/e1c8e267-7aa6-4b58-81e2-5f1522f5a081/apiKeys/6c76744d-9980-40fc-bf8d-e02fd79066fd
+  COINBASE_API_PASSPHRASE = Hustle26!
 } = process.env;
 
 const allowed = new Set(ALLOWED_PRODUCTS.split(',').map(s => s.trim().toUpperCase()));
