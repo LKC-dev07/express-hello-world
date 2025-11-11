@@ -181,5 +181,8 @@ async function strategyTick() {
 setInterval(strategyTick, 30 * 1000); // check every 30s
 
 const port = process.env.PORT || 10000;
+app.get('/', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 app.listen(port, () => console.log(`CN listening on :${port}`));
 
