@@ -153,29 +153,42 @@ app.post('/api/order', requireAdmin, async (req, res) => {
 let lastBuyAt = 0;
 async function strategyTick() {
   try {
-    if (STRAT_ENABLED !== 'true') return;
-    const symbol = STRAT_SYMBOL.toUpperCase();
-    if (!allowed.has(symbol)) return;
+    if (process.env.STRAT_ENABLED !== 'true') return;
 
-    const cooldown = Number(STRAT_COOLDOWN_SEC);
-    if (Date.now() - lastBuyAt < cooldown * 1000) return;
+    const symbol = (process.env.STRAT_CURRENCY || 'BTC-USD').toUpperCase();
+    const dipPct = Number(process.env.STRAT_BUY_ON_DIP_PCT || '1.5');
+    const buyUsd = Number(process.env.STRAT_BUY_AMOUNT_USD || '5');
+    const maxUsd = Number(process.env.MAX_TRADE_USD || '35');
+    const maWindow = Number(process.env.STRAT_MA_WINDOW_HOURS || '12');
 
-    const t1 = await getPublicTicker(symbol);
-    await new Promise(r => setTimeout(r, 60 * 1000)); // look back 1 min
-    const t2 = await getPublicTicker(symbol);
+    // --- pull current and historic prices
+    const { price: current } = await getPublicTicker(symbol);
+    const past = await getHistoricPrice(symbol, maWindow); // you can stub this for now
+    const dropPct = ((past - current) / past) * 100;
 
-    const dropPct = ((t2.price - t1.price) / t1.price) * 100; // negative = drop
-    if (dropPct <= -Number(STRAT_BUY_ON_DIP_PCT)) {
-      const orderUsd = Math.min( Number(STRAT_MAX_POSITION_USD), Number(MAX_TRADE_USD) );
-      if (isPaper) {
-        console.log(`[PAPER] Dip buy ${symbol}: $${orderUsd} at ~${t2.price.toFixed(2)} (${dropPct.toFixed(2)}%)`);
-      } else {
-        await fetch('http://localhost/internal/place', { method: 'POST' }); // placeholder if you later internalize calls
-      }
-      lastBuyAt = Date.now();
+    const now = new Date().toISOString();
+
+    if (isNaN(past) || past <= 0) {
+      console.log(`[${now}] ERROR: could not fetch historic price for ${symbol}`);
+      return;
     }
-  } catch (e) {
-    console.log('strategy error:', e.message || e);
+
+    // --- decide
+    if (dropPct >= dipPct) {
+      console.log(
+        `[${now}] Trigger: price dropped ${dropPct.toFixed(2)}% (<${dipPct}%), placing paper BUY for $${buyUsd}`
+      );
+      await placePaperOrder(symbol, 'buy', buyUsd);
+    } else {
+      console.log(
+        `[${now}] Skipped – only ${dropPct.toFixed(2)}% below ${maWindow}h average (${past.toFixed(
+          2
+        )}), need ${dipPct}%`
+      );
+    }
+  } catch (err) {
+    const now = new Date().toISOString();
+    console.log(`[${now}] ERROR: ${err.message || err}`);
   }
 }
 setInterval(strategyTick, 30 * 1000); // check every 30s
