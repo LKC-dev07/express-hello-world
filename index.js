@@ -215,7 +215,7 @@ async function strategyTick() {
     console.log(`[${now}] ERROR: ${err.message || err}`);
   }
 }
-setInterval(strategyTick, 30 * 1000); // check every 30s
+setInterval(strategyTick, 15 * 60 * 1000); // every 15 min
 
 const port = process.env.PORT || 10000;
 app.get('/', (_req, res) => {
