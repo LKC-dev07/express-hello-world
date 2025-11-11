@@ -33,6 +33,7 @@
   <div id="result"></div>
 
   <script>
+    window.CN_ADMIN_TOKEN = prompt("ba029d06b391882bcbbe9aed6c2de5cd:");
     const form = document.getElementById('tradeForm');
     form.addEventListener('submit', async e => {
       e.preventDefault();
@@ -40,10 +41,13 @@
       const side = document.getElementById('side').value;
       const usd = parseFloat(document.getElementById('usd').value);
       const res = await fetch('/api/paper-order', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({product, side, usd})
-      });
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer ' + (window.CN_ADMIN_TOKEN || '')
+  },
+  body: JSON.stringify({product, side, usd})
+});
       const data = await res.json();
       document.getElementById('result').textContent =
         JSON.stringify(data, null, 2);
