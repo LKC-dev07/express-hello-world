@@ -56,7 +56,31 @@ async function getPublicTicker(product = 'BTC-USD') {
   const j = await r.json();
   return { price: parseFloat(j.price), bid: parseFloat(j.bid), ask: parseFloat(j.ask), time: new Date().toISOString() };
 }
-
+// --- fetch approximate historic price (12h lookback) ---
+// For now this just reuses the current price as a placeholder.
+// Later you can swap in a real historical data call.
+async function getHistoricPrice(product = 'BTC-USD', hours = 12) {
+  try {
+    // Coinbase doesn't offer a simple "12h ago" endpoint in the public API,
+    // so we could simulate by pulling recent candles.
+    const end = new Date();
+    const start = new Date(end.getTime() - hours * 60 * 60 * 1000);
+    const url = `https://api.exchange.coinbase.com/products/${product}/candles?granularity=3600&start=${start.toISOString()}&end=${end.toISOString()}`;
+    const r = await fetch(url, { headers: { 'User-Agent': 'CN/1.0' } });
+    if (!r.ok) throw new Error(`historic ${product} failed: ${r.status}`);
+    const candles = await r.json();
+    if (!Array.isArray(candles) || !candles.length) throw new Error('no candle data');
+    // Each candle = [time, low, high, open, close, volume]
+    const closes = candles.map(c => c[4]);
+    const avg = closes.reduce((a, b) => a + b, 0) / closes.length;
+    return avg;
+  } catch (err) {
+    console.log(`[${new Date().toISOString()}] WARN: getHistoricPrice failed for ${product} – ${err.message}`);
+    // Fallback to current price if data fetch fails
+    const { price } = await getPublicTicker(product);
+    return price;
+  }
+}
 // NOTE: Trading requires Coinbase **Advanced Trade API**.
 // The signing details can change. We stub a signer so you can drop in the exact spec from Coinbase docs.
 // Replace `signAdvancedTrade` body once you have the official details in front of you.
