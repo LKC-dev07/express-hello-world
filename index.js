@@ -198,7 +198,7 @@ async function strategyTick() {
     }
 
     // --- decide
-    if (dropPct >= dipPct) {
+    if (Math.abs(dropPct) >= dipPct && dropPct < 0) {
       console.log(
         `[${now}] Trigger: price dropped ${dropPct.toFixed(2)}% (<${dipPct}%), placing paper BUY for $${buyUsd}`
       );
