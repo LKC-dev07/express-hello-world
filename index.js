@@ -116,8 +116,6 @@ async function coinbaseRequest(method, path, bodyObj) {
 }
 
 // --- routes ---
-app.get('/', (_req, res) => res.send('Crypto Navigator backend is running.'));
-
 app.get('/api/health', (_req, res) => res.json({ ok: true, time: new Date().toISOString(), paper: isPaper }));
 
 app.get('/api/price/:product', async (req, res) => {
