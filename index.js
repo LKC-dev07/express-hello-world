@@ -264,20 +264,34 @@ async function strategyTick() {
       console.log(`[${now}] ERROR: could not fetch historic price for ${symbol}`);
       return;
     }
+    // === RANGE ACCUMULATION STRATEGY ===
 
-    // BUY when current is below the moving average by at least dipPct
-if (current < past && dropPct >= dipPct) {
-  console.log(
-    `[${now}] Trigger: price dropped ${dropPct.toFixed(2)}% (≥${dipPct}%), placing paper BUY for $${buyUsd}`
-  );
-  await placePaperOrder(symbol, 'buy', buyUsd);
-} else {
-  console.log(
-    `[${now}] Skipped – only ${dropPct.toFixed(2)}% below ${maWindow}h average (${past.toFixed(
-      2
-    )}), need ${dipPct}%`
-  );
-}
+    // compute ATR-based band %
+    const atr = await getATR(symbol, maWindow);
+    const atrPct = (atr / past) * 100;
+
+    const multiplier = Number(process.env.STRAT_ATR_MULTIPLIER || '1.2');
+    let bandPct = atrPct * multiplier;
+
+    const minPct = Number(process.env.STRAT_MIN_BAND_PCT || '1.0');
+    const maxPct = Number(process.env.STRAT_MAX_BAND_PCT || '5.0');
+    bandPct = Math.max(minPct, Math.min(maxPct, bandPct));
+
+    // compute range boundaries
+    const lowerBand = past * (1 - bandPct / 100);
+    const upperBand = past * (1 + bandPct / 100);
+
+    console.log(`[${now}] MA=${past.toFixed(2)}, ATR%=${atrPct.toFixed(2)}, band=${bandPct.toFixed(2)}%`);
+    console.log(`[${now}] range: lower=${lowerBand.toFixed(2)}, upper=${upperBand.toFixed(2)}, current=${current}`);
+
+    // === BUY LOGIC ONLY (accumulation strategy) ===
+    if (current <= lowerBand) {
+      console.log(`[${now}] RANGE BUY: price ${current} <= lowerBand ${lowerBand.toFixed(2)}, buying $${buyUsd}`);
+      await placePaperOrder(symbol, 'buy', buyUsd);
+    } else {
+      console.log(`[${now}] No action (accumulation only).`);
+    }
+
 
   } catch (err) {
     const now = new Date().toISOString();
