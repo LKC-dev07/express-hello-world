@@ -170,6 +170,38 @@ app.post('/api/order', requireAdmin, async (req, res) => {
     res.json({ placed: true, response: j });
   } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
 });
+// helper used by automation (no HTTP hop)
+async function placePaperOrder(product = 'BTC-USD', side = 'buy', usd = 5) {
+  if (!allowed.has(product.toUpperCase())) {
+    throw new Error('symbol not allowed');
+  }
+
+  const max = Number(MAX_TRADE_USD);
+  if (usd > max) {
+    throw new Error(`usd > MAX_TRADE_USD (${max})`);
+  }
+
+  const t = await getPublicTicker(product);
+  const qty = Number((usd / t.price).toFixed(6));
+
+  const payload = {
+    mode: 'paper',
+    product,
+    side,
+    usd,
+    est_price: t.price,
+    est_qty: qty,
+    time: new Date().toISOString()
+  };
+
+  console.log(
+    `[AUTO PAPER] ${side.toUpperCase()} ${product} for $${usd} @ ${t.price.toFixed(
+      2
+    )} (~${qty})`
+  );
+
+  return payload;
+}
 
 // --- ultra-light strategy runner (buy small on dips) ---
 let lastBuyAt = 0;
