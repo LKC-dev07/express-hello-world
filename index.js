@@ -81,6 +81,43 @@ async function getHistoricPrice(product = 'BTC-USD', hours = 12) {
     return price;
   }
 }
+    // --- ATR calculation ---
+// ATR uses recent candles to measure volatility.
+// granularity: 3600 = 1 hour candles (12 candles for 12h)
+async function getATR(product = 'BTC-USD', hours = 12) {
+  try {
+    const granularity = 3600; // 1 hour
+    const url = `https://api.exchange.coinbase.com/products/${product}/candles?granularity=${granularity}`;
+    const r = await fetch(url, { headers: { 'User-Agent': 'CN/1.0' } });
+    const candles = await r.json();
+
+    if (!Array.isArray(candles) || candles.length < hours + 1)
+      throw new Error('not enough candle data');
+
+    // Candles come newest-first; reverse so oldest-first
+    const sorted = candles.slice(0, hours + 1).reverse();
+
+    let trs = [];
+    for (let i = 1; i < sorted.length; i++) {
+      const [t, low, high, open, close] = sorted[i];
+      const prevClose = sorted[i - 1][4];
+
+      const tr = Math.max(
+        high - low,
+        Math.abs(high - prevClose),
+        Math.abs(low - prevClose)
+      );
+      trs.push(tr);
+    }
+
+    const atr = trs.reduce((a, b) => a + b, 0) / trs.length;
+    return atr;
+  } catch (err) {
+    console.log(`[ATR WARN] ${err.message}`);
+    return 0;
+  }
+}
+
 // NOTE: Trading requires Coinbase **Advanced Trade API**.
 // The signing details can change. We stub a signer so you can drop in the exact spec from Coinbase docs.
 // Replace `signAdvancedTrade` body once you have the official details in front of you.
@@ -222,42 +259,7 @@ async function strategyTick() {
 
     const now = new Date().toISOString();
 
-    // --- ATR calculation ---
-// ATR uses recent candles to measure volatility.
-// granularity: 3600 = 1 hour candles (12 candles for 12h)
-async function getATR(product = 'BTC-USD', hours = 12) {
-  try {
-    const granularity = 3600; // 1 hour
-    const url = `https://api.exchange.coinbase.com/products/${product}/candles?granularity=${granularity}`;
-    const r = await fetch(url, { headers: { 'User-Agent': 'CN/1.0' } });
-    const candles = await r.json();
 
-    if (!Array.isArray(candles) || candles.length < hours + 1)
-      throw new Error('not enough candle data');
-
-    // Candles come newest-first; reverse so oldest-first
-    const sorted = candles.slice(0, hours + 1).reverse();
-
-    let trs = [];
-    for (let i = 1; i < sorted.length; i++) {
-      const [t, low, high, open, close] = sorted[i];
-      const prevClose = sorted[i - 1][4];
-
-      const tr = Math.max(
-        high - low,
-        Math.abs(high - prevClose),
-        Math.abs(low - prevClose)
-      );
-      trs.push(tr);
-    }
-
-    const atr = trs.reduce((a, b) => a + b, 0) / trs.length;
-    return atr;
-  } catch (err) {
-    console.log(`[ATR WARN] ${err.message}`);
-    return 0;
-  }
-}
     if (isNaN(past) || past <= 0) {
       console.log(`[${now}] ERROR: could not fetch historic price for ${symbol}`);
       return;
