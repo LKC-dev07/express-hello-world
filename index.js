@@ -231,19 +231,20 @@ async function getATR(product = 'BTC-USD', hours = 12) {
       return;
     }
 
-    // --- decide
-    if (Math.abs(dropPct) >= dipPct && dropPct < 0) {
-      console.log(
-        `[${now}] Trigger: price dropped ${dropPct.toFixed(2)}% (<${dipPct}%), placing paper BUY for $${buyUsd}`
-      );
-      await placePaperOrder(symbol, 'buy', buyUsd);
-    } else {
-      console.log(
-        `[${now}] Skipped – only ${dropPct.toFixed(2)}% below ${maWindow}h average (${past.toFixed(
-          2
-        )}), need ${dipPct}%`
-      );
-    }
+    // BUY when current is below the moving average by at least dipPct
+if (current < past && dropPct >= dipPct) {
+  console.log(
+    `[${now}] Trigger: price dropped ${dropPct.toFixed(2)}% (≥${dipPct}%), placing paper BUY for $${buyUsd}`
+  );
+  await placePaperOrder(symbol, 'buy', buyUsd);
+} else {
+  console.log(
+    `[${now}] Skipped – only ${dropPct.toFixed(2)}% below ${maWindow}h average (${past.toFixed(
+      2
+    )}), need ${dipPct}%`
+  );
+}
+
   } catch (err) {
     const now = new Date().toISOString();
     console.log(`[${now}] ERROR: ${err.message || err}`);
