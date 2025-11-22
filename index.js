@@ -207,7 +207,6 @@ app.post('/api/order', requireAdmin, async (req, res) => {
     res.json({ placed: true, response: j });
   } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
 });
-// helper used by automation (no HTTP hop)
 async function placePaperOrder(product = 'BTC-USD', side = 'buy', usd = 5) {
   if (!allowed.has(product.toUpperCase())) {
     throw new Error('symbol not allowed');
@@ -219,7 +218,22 @@ async function placePaperOrder(product = 'BTC-USD', side = 'buy', usd = 5) {
   }
 
   const t = await getPublicTicker(product);
-  const qty = Number((usd / t.price).toFixed(6));
+  let qty;
+
+  if (side === 'buy') {
+    // buy qty = usd / price
+    qty = Number((usd / t.price).toFixed(6));
+    virtualBtc += qty;
+    virtualUsd -= usd;
+  } else if (side === 'sell') {
+    // target qty = usd / price, but cap by what we actually "hold"
+    const targetQty = usd / t.price;
+    qty = Math.min(targetQty, virtualBtc);
+    virtualBtc -= qty;
+    virtualUsd += qty * t.price;
+  } else {
+    throw new Error(`unsupported side: ${side}`);
+  }
 
   const payload = {
     mode: 'paper',
@@ -234,7 +248,7 @@ async function placePaperOrder(product = 'BTC-USD', side = 'buy', usd = 5) {
   console.log(
     `[AUTO PAPER] ${side.toUpperCase()} ${product} for $${usd} @ ${t.price.toFixed(
       2
-    )} (~${qty})`
+    )} (~${qty}), balances: BTC=${virtualBtc.toFixed(6)}, USD=${virtualUsd.toFixed(2)}`
   );
 
   return payload;
@@ -264,6 +278,9 @@ async function strategyTick() {
       console.log(`[${now}] ERROR: could not fetch historic price for ${symbol}`);
       return;
     }
+    let virtualBtc = 0;
+let virtualUsd = 0;
+
     // === RANGE ACCUMULATION STRATEGY ===
 
     // compute ATR-based band %
