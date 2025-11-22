@@ -301,14 +301,42 @@ let virtualUsd = 0;
     console.log(`[${now}] MA=${past.toFixed(2)}, ATR%=${atrPct.toFixed(2)}, band=${bandPct.toFixed(2)}%`);
     console.log(`[${now}] range: lower=${lowerBand.toFixed(2)}, upper=${upperBand.toFixed(2)}, current=${current}`);
 
-    // === BUY LOGIC ONLY (accumulation strategy) ===
-    if (current <= lowerBand) {
-      console.log(`[${now}] RANGE BUY: price ${current} <= lowerBand ${lowerBand.toFixed(2)}, buying $${buyUsd}`);
-      await placePaperOrder(symbol, 'buy', buyUsd);
-    } else {
-      console.log(`[${now}] No action (accumulation only).`);
-    }
+     const sellEnabled = process.env.STRAT_SELL_ENABLED === 'true';
+    const maxSellFraction = Number(process.env.STRAT_SELL_MAX_FRACTION || '0.2');
+    const extraBandPct = Number(process.env.STRAT_SELL_EXTRA_BAND_PCT || '0.5');
+    const minVirtualBtc = Number(process.env.STRAT_MIN_VIRTUAL_BTC || '0.00001');
 
+    // === BUY: accumulation on dips ===
+    if (current <= lowerBand) {
+      console.log(
+        `[${now}] RANGE BUY: price ${current} <= lowerBand ${lowerBand.toFixed(2)}, buying $${buyUsd}`
+      );
+      await placePaperOrder(symbol, 'buy', buyUsd);
+    }
+    // === CONSERVATIVE SELL: skim a small slice only on strong highs ===
+    else if (
+      sellEnabled &&
+      virtualBtc > minVirtualBtc &&
+      current >= upperBand * (1 + extraBandPct / 100)
+    ) {
+      const maxSellQty = virtualBtc * maxSellFraction;
+      const sellUsd = maxSellQty * current;
+
+      console.log(
+        `[${now}] RANGE SELL: price ${current} >= upperBand * (1+${extraBandPct}%), selling up to ${maxSellFraction *
+          100}% of virtual BTC (~$${sellUsd.toFixed(2)})`
+      );
+
+      if (sellUsd > 0) {
+        await placePaperOrder(symbol, 'sell', sellUsd);
+      } else {
+        console.log(`[${now}] Sell skipped – computed sellUsd <= 0`);
+      }
+    }
+    // === NEUTRAL ===
+    else {
+      console.log(`[${now}] No action (range, conservative).`);
+    }
 
   } catch (err) {
     const now = new Date().toISOString();
