@@ -144,7 +144,7 @@ async function strategyTick() {
   try {
     if (STRAT_ENABLED !== 'true') return;
 
-    const symbol = (STRAT_SYMBOL || 'BTC-USD').toUpperCase();
+    const symbol = (STRAT_CURRENCY || 'BTC-USD').toUpperCase();
     const buyUsd = Number(process.env.STRAT_BUY_AMOUNT_USD || '5');
     const maWindow = Number(process.env.STRAT_MA_WINDOW_HOURS || '12');
 
