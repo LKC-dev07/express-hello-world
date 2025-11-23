@@ -81,7 +81,10 @@ async function getHistoricPrice(product = 'BTC-USD', hours = 12) {
     return price;
   }
 }
-    // --- ATR calculation ---
+let virtualBtc = 0;
+let virtualUsd = 0;
+
+// --- ATR calculation ---
 // ATR uses recent candles to measure volatility.
 // granularity: 3600 = 1 hour candles (12 candles for 12h)
 async function getATR(product = 'BTC-USD', hours = 12) {
