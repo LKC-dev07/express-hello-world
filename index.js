@@ -253,6 +253,8 @@ async function placePaperOrder(product = 'BTC-USD', side = 'buy', usd = 5) {
 
   return payload;
 }
+let virtualBtc = 0;
+let virtualUsd = 0;
 
 // --- ultra-light strategy runner (buy small on dips) ---
 let lastBuyAt = 0;
@@ -305,14 +307,47 @@ let virtualUsd = 0;
     const maxSellFraction = Number(process.env.STRAT_SELL_MAX_FRACTION || '0.2');
     const extraBandPct = Number(process.env.STRAT_SELL_EXTRA_BAND_PCT || '0.5');
     const minVirtualBtc = Number(process.env.STRAT_MIN_VIRTUAL_BTC || '0.00001');
+// === CONSERVATIVE RANGE ACCUMULATION + SELL SKIM ===
 
-    // === BUY: accumulation on dips ===
-    if (current <= lowerBand) {
-      console.log(
-        `[${now}] RANGE BUY: price ${current} <= lowerBand ${lowerBand.toFixed(2)}, buying $${buyUsd}`
-      );
-      await placePaperOrder(symbol, 'buy', buyUsd);
-    }
+const sellEnabled = process.env.STRAT_SELL_ENABLED === 'true';
+const maxSellFraction = Number(process.env.STRAT_SELL_MAX_FRACTION || '0.2');
+const extraBandPct = Number(process.env.STRAT_SELL_EXTRA_BAND_PCT || '0.5');
+const minVirtualBtc = Number(process.env.STRAT_MIN_VIRTUAL_BTC || '0.00001');
+
+// BUY on dips
+if (current <= lowerBand) {
+  console.log(
+    `[${now}] RANGE BUY: price ${current} <= lowerBand ${lowerBand.toFixed(2)}, buying $${buyUsd}`
+  );
+  await placePaperOrder(symbol, 'buy', buyUsd);
+}
+
+// SELL on strong highs (ultra-safe skim)
+else if (
+  sellEnabled &&
+  virtualBtc > minVirtualBtc &&
+  current >= upperBand * (1 + extraBandPct / 100)
+) {
+  const maxSellQty = virtualBtc * maxSellFraction;
+  const sellUsd = maxSellQty * current;
+
+  console.log(
+    `[${now}] RANGE SELL: price ${current} >= upperBand * (1 + ${extraBandPct}%), selling up to ${(
+      maxSellFraction * 100
+    ).toFixed(0)}% of virtual BTC (~$${sellUsd.toFixed(2)})`
+  );
+
+  if (sellUsd > 0) {
+    await placePaperOrder(symbol, 'sell', sellUsd);
+  } else {
+    console.log(`[${now}] Sell skipped – computed sellUsd <= 0`);
+  }
+}
+
+// nothing to do
+else {
+  console.log(`[${now}] No action (range, conservative).`);
+}
     // === CONSERVATIVE SELL: skim a small slice only on strong highs ===
     else if (
       sellEnabled &&
