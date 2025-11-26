@@ -23,7 +23,7 @@ const {
   // Strategy
   STRAT_ENABLED = 'false',
 
-  // Coinbase (live trading later)
+  // Coinbase (live trading )
   COINBASE_API_KEY,
   COINBASE_API_SECRET,
   COINBASE_API_PASSPHRASE
