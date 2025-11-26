@@ -186,6 +186,45 @@ app.post('/api/paper-order', requireAdmin, async (req, res) => {
   }
 });
 let lastBuyTimestamp = 0; // cooldown tracking
+// --- LIVE ORDER (Coinbase Advanced Trade) ---
+app.post('/api/live-order', requireAdmin, async (req, res) => {
+  try {
+    if (isPaper) {
+      return res.status(400).json({ error: 'paper mode enabled — set PAPER_TRADING=false to place live orders' });
+    }
+
+    const { product = 'BTC-USD', side = 'BUY', usd = 5 } = req.body;
+
+    // safety check
+    if (!allowed.has(product.toUpperCase())) {
+      return res.status(400).json({ error: 'symbol not allowed' });
+    }
+
+    // Construct the official AT API request body
+    const body = {
+      product_id: product,
+      side: side.toUpperCase(),         // BUY or SELL
+      order_configuration: {
+        market_market_ioc: {
+          quote_size: String(usd)       // amount in USD to spend
+        }
+      }
+    };
+
+    const result = await coinbaseRequest(
+      'POST',
+      '/api/v3/brokerage/orders',
+      body
+    );
+
+    console.log(`[LIVE ORDER] ${side.toUpperCase()} ${product} for $${usd} placed successfully.`);
+    res.json({ ok: true, placed: true, response: result });
+
+  } catch (err) {
+    console.log(`[LIVE ORDER ERROR] ${err.message}`);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // --- STRATEGY TICK ---
 async function strategyTick() {
