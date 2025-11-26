@@ -95,6 +95,17 @@ async function getATR(product = 'BTC-USD', hours = 12) {
     return 0;
   }
 }
+// --- COINBASE ADVANCED TRADE SIGNER ---
+function signAdvancedTrade(method, requestPath, body = '') {
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const prehash = timestamp + method.toUpperCase() + requestPath + body;
+
+  const key = Buffer.from(COINBASE_API_SECRET, 'base64');
+  const hmac = crypto.createHmac('sha256', key);
+  const signature = hmac.update(prehash).digest('base64');
+
+  return { timestamp, signature };
+}
 
 // --- PAPER ORDER HELPER ---
 let virtualBtc = 0;
