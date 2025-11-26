@@ -138,6 +138,7 @@ app.post('/api/paper-order', requireAdmin, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+let lastBuyTimestamp = 0; // cooldown tracking
 
 // --- STRATEGY TICK ---
 async function strategyTick() {
@@ -186,16 +187,33 @@ async function strategyTick() {
     const extraBand = Number(process.env.STRAT_SELL_EXTRA_BAND_PCT || '0.5');
     const minBtc = Number(process.env.STRAT_MIN_VIRTUAL_BTC || '0.00001');
 
-    // BUY on dips
-    if (current <= lower) {
-      console.log(
-        `[${now}] RANGE BUY: ${current} <= ${lower.toFixed(
-          2
-        )}, buying $${buyUsd}`
-      );
-      await placePaperOrder(symbol, 'buy', buyUsd);
-      return;
-    }
+// BUY on dips (respect cooldown)
+const cooldownSec = Number(process.env.STRAT_COOLDOWN_SEC || '1800');
+const nowSec = Math.floor(Date.now() / 1000);
+
+// has enough time passed since last buy?
+if (current <= lower) {
+  if (nowSec - lastBuyTimestamp < cooldownSec) {
+    console.log(
+      `[${now}] Cooldown active: last buy ${(
+        (nowSec - lastBuyTimestamp) / 60
+      ).toFixed(0)} min ago, need ${cooldownSec / 60} min`
+    );
+    return;
+  }
+
+  console.log(
+    `[${now}] RANGE BUY: ${current} <= ${lower.toFixed(
+      2
+    )}, buying $${buyUsd}`
+  );
+
+  await placePaperOrder(symbol, 'buy', buyUsd);
+
+  // record time of this buy
+  lastBuyTimestamp = nowSec;
+  return;
+}
 
     // SELL skim only on strong highs
     if (
