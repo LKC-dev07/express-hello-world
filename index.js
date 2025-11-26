@@ -106,6 +106,42 @@ function signAdvancedTrade(method, requestPath, body = '') {
 
   return { timestamp, signature };
 }
+// --- COINBASE ADVANCED TRADE REQUEST WRAPPER ---
+async function coinbaseRequest(method, requestPath, bodyObj = null) {
+  const baseUrl = 'https://api.coinbase.com';
+  const body = bodyObj ? JSON.stringify(bodyObj) : '';
+
+  const { timestamp, signature } = signAdvancedTrade(method, requestPath, body);
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'CB-ACCESS-KEY': COINBASE_API_KEY,
+    'CB-ACCESS-SIGN': signature,
+    'CB-ACCESS-TIMESTAMP': timestamp,
+    ...(COINBASE_API_PASSPHRASE ? { 'CB-ACCESS-PASSPHRASE': COINBASE_API_PASSPHRASE } : {})
+  };
+
+  const r = await fetch(baseUrl + requestPath, {
+    method,
+    headers,
+    body: body || undefined
+  });
+
+  const text = await r.text();
+  let json;
+
+  try {
+    json = JSON.parse(text);
+  } catch {
+    json = { raw: text };
+  }
+
+  if (!r.ok) {
+    throw new Error(`Coinbase error ${r.status}: ${text}`);
+  }
+
+  return json;
+}
 
 // --- PAPER ORDER HELPER ---
 let virtualBtc = 0;
