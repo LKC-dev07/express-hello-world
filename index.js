@@ -1,3 +1,4 @@
+
 import express from 'express';
 import fetch from 'node-fetch';
 import crypto from 'crypto';
@@ -95,49 +96,49 @@ async function getATR(product = 'BTC-USD', hours = 12) {
     return 0;
   }
 }
-// --- ADVANCED TRADE SIGNER (CORRECT) ---
-import crypto from 'crypto';
-
-function signAdvancedTrade(path, method, body = "") {
+// --- COINBASE ADVANCED TRADE SIGNER ---
+function signAdvancedTrade(method, requestPath, body = '') {
   const timestamp = Math.floor(Date.now() / 1000).toString();
-  const prehash = timestamp + method.toUpperCase() + path + body;
+  const prehash = timestamp + method.toUpperCase() + requestPath + body;
 
-  // Coinbase AT keys are RAW hex strings, not base64
-  const key = Buffer.from(COINBASE_API_SECRET, "utf8");
-
-  const signature = crypto
-    .createHmac("sha256", key)
-    .update(prehash)
-    .digest("hex");
+  const key = Buffer.from(COINBASE_API_SECRET, 'base64');
+  const hmac = crypto.createHmac('sha256', key);
+  const signature = hmac.update(prehash).digest('base64');
 
   return { timestamp, signature };
 }
+// --- COINBASE ADVANCED TRADE REQUEST WRAPPER ---
+async function coinbaseRequest(method, requestPath, bodyObj = null) {
+  const baseUrl = 'https://api.coinbase.com';
+  const body = bodyObj ? JSON.stringify(bodyObj) : '';
 
-async function coinbaseRequest(method, path, bodyObj = null) {
-  const body = bodyObj ? JSON.stringify(bodyObj) : "";
-  const { timestamp, signature } = signAdvancedTrade(path, method, body);
+  const { timestamp, signature } = signAdvancedTrade(method, requestPath, body);
 
   const headers = {
-    "Content-Type": "application/json",
-    "CB-ACCESS-KEY": COINBASE_API_KEY,
-    "CB-ACCESS-SIGN": signature,
-    "CB-ACCESS-TIMESTAMP": timestamp
+    'Content-Type': 'application/json',
+    'CB-ACCESS-KEY': COINBASE_API_KEY,
+    'CB-ACCESS-SIGN': signature,
+    'CB-ACCESS-TIMESTAMP': timestamp,
+    ...(COINBASE_API_PASSPHRASE ? { 'CB-ACCESS-PASSPHRASE': COINBASE_API_PASSPHRASE } : {})
   };
 
-  const url = "https://api.coinbase.com" + path;
-
-  const res = await fetch(url, {
+  const r = await fetch(baseUrl + requestPath, {
     method,
     headers,
     body: body || undefined
   });
 
-  const text = await res.text();
+  const text = await r.text();
   let json;
-  try { json = JSON.parse(text); } catch (e) { json = text; }
 
-  if (!res.ok) {
-    throw new Error("Coinbase error " + res.status + ": " + text);
+  try {
+    json = JSON.parse(text);
+  } catch {
+    json = { raw: text };
+  }
+
+  if (!r.ok) {
+    throw new Error(`Coinbase error ${r.status}: ${text}`);
   }
 
   return json;
