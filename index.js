@@ -96,41 +96,45 @@ async function getATR(product = 'BTC-USD', hours = 12) {
     return 0;
   }
 }
-// --- COINBASE ADVANCED TRADE SIGNER ---
-function signAdvancedTrade(method, requestPath, body = '') {
+// --- SIGNING (Coinbase Advanced Trade) ---
+function signAdvancedTrade(method, path, body = "") {
   const timestamp = Math.floor(Date.now() / 1000).toString();
-  const prehash = timestamp + method.toUpperCase() + requestPath + body;
+  const prehash = timestamp + method.toUpperCase() + path + body;
 
-  const key = Buffer.from(COINBASE_API_SECRET, 'base64');
-  const hmac = crypto.createHmac('sha256', key);
-  const signature = hmac.update(prehash).digest('base64');
+  // Coinbase Advanced Trade uses HMAC-SHA256 with your API secret
+  const key = Buffer.from(COINBASE_API_SECRET, "base64");
+
+  const signature = crypto
+    .createHmac("sha256", key)
+    .update(prehash)
+    .digest("base64");
 
   return { timestamp, signature };
 }
-// --- COINBASE ADVANCED TRADE REQUEST WRAPPER ---
-async function coinbaseRequest(method, requestPath, bodyObj = null) {
-  const baseUrl = 'https://api.coinbase.com';
-  const body = bodyObj ? JSON.stringify(bodyObj) : '';
 
-  const { timestamp, signature } = signAdvancedTrade(method, requestPath, body);
+// --- COINBASE REQUEST WRAPPER ---
+async function coinbaseRequest(method, path, bodyObj) {
+  const body = bodyObj ? JSON.stringify(bodyObj) : "";
+
+  const { timestamp, signature } = signAdvancedTrade(method, path, body);
 
   const headers = {
-    'Content-Type': 'application/json',
-    'CB-ACCESS-KEY': COINBASE_API_KEY,
-    'CB-ACCESS-SIGN': signature,
-    'CB-ACCESS-TIMESTAMP': timestamp,
-    ...(COINBASE_API_PASSPHRASE ? { 'CB-ACCESS-PASSPHRASE': COINBASE_API_PASSPHRASE } : {})
+    "Content-Type": "application/json",
+    "CB-ACCESS-KEY": COINBASE_API_KEY,
+    "CB-ACCESS-SIGN": signature,
+    "CB-ACCESS-TIMESTAMP": timestamp,
   };
 
-  const r = await fetch(baseUrl + requestPath, {
-    method,
-    headers,
-    body: body || undefined
-  });
+  if (COINBASE_API_PASSPHRASE) {
+    headers["CB-ACCESS-PASSPHRASE"] = COINBASE_API_PASSPHRASE;
+  }
+
+  const url = "https://api.coinbase.com" + path;
+
+  const r = await fetch(url, { method, headers, body });
 
   const text = await r.text();
   let json;
-
   try {
     json = JSON.parse(text);
   } catch {
@@ -143,6 +147,7 @@ async function coinbaseRequest(method, requestPath, bodyObj = null) {
 
   return json;
 }
+
 
 // --- PAPER ORDER HELPER ---
 let virtualBtc = 0;
@@ -171,16 +176,18 @@ async function placePaperOrder(product = 'BTC-USD', side = 'buy', usd = 5) {
     )} qty=${qty}, balances: BTC=${virtualBtc.toFixed(6)}, USD=${virtualUsd.toFixed(2)}`
   );
 }
+
 // --- LIVE ORDER HELPER ---
-async function placeLiveOrder(product = 'BTC-USD', side = 'buy', usd = 5) {
+async function placeLiveOrder(product = "BTC-USD", side = "buy", usd = 5) {
   if (!COINBASE_API_KEY || !COINBASE_API_SECRET) {
-    throw new Error("Live order attempted but API keys missing.");
+    throw new Error("Missing Coinbase API credentials");
   }
 
-  const path = `/api/v3/brokerage/orders`;
+  const path = "/api/v3/brokerage/orders";
+
   const body = {
     product_id: product,
-    side: side.toUpperCase(),
+    side: side.toUpperCase(),  // BUY or SELL
     order_configuration: {
       market_market_ioc: {
         quote_size: String(usd)
@@ -188,7 +195,7 @@ async function placeLiveOrder(product = 'BTC-USD', side = 'buy', usd = 5) {
     }
   };
 
-  const response = await coinbaseRequest('POST', path, body);
+  const response = await coinbaseRequest("POST", path, body);
 
   console.log(`[LIVE ORDER] ${side.toUpperCase()} $${usd} ${product}`);
   console.log(`[LIVE ORDER RESPONSE]`, response);
@@ -252,16 +259,17 @@ app.post('/api/live-order', requireAdmin, async (req, res) => {
 });
 
 // --- LIVE ORDER ROUTE ---
-app.post('/api/live-order', requireAdmin, async (req, res) => {
+app.post("/api/live-order", requireAdmin, async (req, res) => {
   try {
     if (isPaper) {
-      return res.status(400).json({ error: "paper mode enabled — cannot place live orders" });
+      return res.status(400).json({ error: "PAPER_TRADING=true — cannot send live orders" });
     }
 
-    const { product = 'BTC-USD', side = 'buy', usd = 5 } = req.body;
-    const result = await placeLiveOrder(product, side, usd);
+    const { product = "BTC-USD", side = "BUY", usd = 5 } = req.body;
 
-    res.json({ ok: true, result });
+    const out = await placeLiveOrder(product, side, usd);
+
+    res.json({ ok: true, response: out });
   } catch (err) {
     console.log(`[LIVE ORDER ERROR] ${err.message}`);
     res.status(500).json({ error: err.message });
