@@ -170,6 +170,35 @@ async function placePaperOrder(product = 'BTC-USD', side = 'buy', usd = 5) {
     )} qty=${qty}, balances: BTC=${virtualBtc.toFixed(6)}, USD=${virtualUsd.toFixed(2)}`
   );
 }
+// --- LIVE ORDER ROUTE ---
+app.post('/api/live-order', requireAdmin, async (req, res) => {
+  try {
+    if (isPaper) {
+      return res.status(400).json({ error: 'PAPER_TRADING=true — cannot send live orders' });
+    }
+
+    const { product = 'BTC-USD', side = 'BUY', usd = 5 } = req.body;
+
+    // Build Coinbase Advanced Trade order
+    const path = '/api/v3/brokerage/orders';
+    const body = {
+      product_id: product,
+      side: side.toUpperCase(),  // BUY or SELL
+      order_configuration: {
+        market_market_ioc: { quote_size: String(usd) }
+      }
+    };
+
+    const result = await coinbaseRequest('POST', path, body);
+
+    console.log(`[LIVE ORDER] Sent ${side} $${usd} ${product}`);
+    res.json({ ok: true, result });
+
+  } catch (err) {
+    console.log(`[LIVE ORDER ERROR] ${err.message}`);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // --- API ROUTES ---
 app.get('/api/health', (_req, res) => {
