@@ -170,35 +170,30 @@ async function placePaperOrder(product = 'BTC-USD', side = 'buy', usd = 5) {
     )} qty=${qty}, balances: BTC=${virtualBtc.toFixed(6)}, USD=${virtualUsd.toFixed(2)}`
   );
 }
-// --- LIVE ORDER ROUTE ---
-app.post('/api/live-order', requireAdmin, async (req, res) => {
-  try {
-    if (isPaper) {
-      return res.status(400).json({ error: 'PAPER_TRADING=true — cannot send live orders' });
-    }
-
-    const { product = 'BTC-USD', side = 'BUY', usd = 5 } = req.body;
-
-    // Build Coinbase Advanced Trade order
-    const path = '/api/v3/brokerage/orders';
-    const body = {
-      product_id: product,
-      side: side.toUpperCase(),  // BUY or SELL
-      order_configuration: {
-        market_market_ioc: { quote_size: String(usd) }
-      }
-    };
-
-    const result = await coinbaseRequest('POST', path, body);
-
-    console.log(`[LIVE ORDER] Sent ${side} $${usd} ${product}`);
-    res.json({ ok: true, result });
-
-  } catch (err) {
-    console.log(`[LIVE ORDER ERROR] ${err.message}`);
-    res.status(500).json({ error: err.message });
+// --- LIVE ORDER HELPER ---
+async function placeLiveOrder(product = 'BTC-USD', side = 'buy', usd = 5) {
+  if (!COINBASE_API_KEY || !COINBASE_API_SECRET) {
+    throw new Error("Live order attempted but API keys missing.");
   }
-});
+
+  const path = `/api/v3/brokerage/orders`;
+  const body = {
+    product_id: product,
+    side: side.toUpperCase(),
+    order_configuration: {
+      market_market_ioc: {
+        quote_size: String(usd)
+      }
+    }
+  };
+
+  const response = await coinbaseRequest('POST', path, body);
+
+  console.log(`[LIVE ORDER] ${side.toUpperCase()} $${usd} ${product}`);
+  console.log(`[LIVE ORDER RESPONSE]`, response);
+
+  return response;
+}
 
 // --- API ROUTES ---
 app.get('/api/health', (_req, res) => {
@@ -249,6 +244,23 @@ app.post('/api/live-order', requireAdmin, async (req, res) => {
     console.log(`[LIVE ORDER] ${side.toUpperCase()} ${product} for $${usd} placed successfully.`);
     res.json({ ok: true, placed: true, response: result });
 
+  } catch (err) {
+    console.log(`[LIVE ORDER ERROR] ${err.message}`);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- LIVE ORDER ROUTE ---
+app.post('/api/live-order', requireAdmin, async (req, res) => {
+  try {
+    if (isPaper) {
+      return res.status(400).json({ error: "paper mode enabled — cannot place live orders" });
+    }
+
+    const { product = 'BTC-USD', side = 'buy', usd = 5 } = req.body;
+    const result = await placeLiveOrder(product, side, usd);
+
+    res.json({ ok: true, result });
   } catch (err) {
     console.log(`[LIVE ORDER ERROR] ${err.message}`);
     res.status(500).json({ error: err.message });
