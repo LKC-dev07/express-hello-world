@@ -252,6 +252,14 @@ app.post('/api/live-order', requireAdmin, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+// --- API Status Route ---
+let recentOrders = [];
+
+// helper to store last N orders
+function recordOrder(entry) {
+  recentOrders.push({ ...entry, time: new Date().toISOString() });
+  if (recentOrders.length > 50) recentOrders.shift();
+}
 
 // --- STRATEGY TICK ---
 async function strategyTick() {
