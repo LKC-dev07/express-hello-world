@@ -212,37 +212,6 @@ async function placeLiveOrder(product = 'BTC-USD', side = 'buy', usd = 5) {
 
   return response;
 }
-async function placePaperOrder(product = 'BTC-USD', side = 'buy', usd = 5) {
-  const t = await getPublicTicker(product);
-  let qty;
-
-  if (side === 'buy') {
-    qty = Number((usd / t.price).toFixed(6));
-    virtualBtc += qty;
-    virtualUsd -= usd;
-  } else if (side === 'sell') {
-    const targetQty = usd / t.price;
-    qty = Math.min(targetQty, virtualBtc);
-    virtualBtc -= qty;
-    virtualUsd += qty * t.price;
-  } else {
-    throw new Error(`bad side ${side}`);
-  }
-
-  const payload = {
-    mode: 'paper',
-    product,
-    side,
-    usd,
-    est_price: t.price,
-    est_qty: qty,
-    balances: {
-      virtualBtc,
-      virtualUsd
-    },
-    time: new Date().toISOString()
-  };
-
   // NEW: track this order in memory
   recordOrder({
     mode: 'paper',
@@ -262,23 +231,6 @@ async function placePaperOrder(product = 'BTC-USD', side = 'buy', usd = 5) {
   return payload;
 }
 // --- Record Order ---
-async function placeLiveOrder(product = 'BTC-USD', side = 'buy', usd = 5) {
-  if (!COINBASE_API_KEY || !COINBASE_API_SECRET) {
-    throw new Error('Missing Coinbase API credentials');
-  }
-
-  const path = '/api/v3/brokerage/orders';
-
-  const body = {
-    product_id: product,
-    side: side.toUpperCase(), // BUY or SELL
-    order_configuration: {
-      market_market_ioc: {
-        quote_size: String(usd)
-      }
-    }
-  };
-
   const response = await coinbaseRequest('POST', path, body);
 
   // NEW: track live order
