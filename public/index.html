@@ -56,3 +56,49 @@
 </body>
 </html>
 
+  <script>
+    const resultEl = document.getElementById('result');
+    const adminToken = 'YOUR_ADMIN_TOKEN_HERE'; // same token you use now
+
+    // PAPER handler (existing one – adjust names to match your current code)
+    document.getElementById('trade-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const product = document.getElementById('pair').value;
+      const side    = document.getElementById('side').value;
+      const usd     = Number(document.getElementById('amount').value);
+
+      const res = await fetch('/api/paper-order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + adminToken
+        },
+        body: JSON.stringify({ product, side, usd })
+      });
+
+      const json = await res.json();
+      resultEl.textContent = JSON.stringify(json, null, 2);
+    });
+
+    // LIVE handler (the code you pasted)
+    document.getElementById('live-btn').addEventListener('click', async (e) => {
+      e.preventDefault();
+      const product = document.getElementById('pair').value;
+      const side    = document.getElementById('side').value.toUpperCase();
+      const usd     = Number(document.getElementById('amount').value);
+
+      const res = await fetch('/api/live-order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + adminToken   // same as paper
+        },
+        body: JSON.stringify({ product, side, usd })
+      });
+
+      const json = await res.json();
+      resultEl.textContent = JSON.stringify(json, null, 2);
+    });
+  </script>
+</body>
+</html>
