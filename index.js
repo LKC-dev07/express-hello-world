@@ -296,6 +296,20 @@ async function placeLiveOrder(product = 'BTC-USD', side = 'buy', usd = 5) {
 
   return response;
 }
+// --- API Status Route ---
+app.get('/api/status', requireAdmin, (_req, res) => {
+  res.json({
+    paper: isPaper,
+    strategyEnabled: STRAT_ENABLED === 'true',
+    allowedProducts: [...allowed],
+    maxTradeUsd: 500(MAX_TRADE_USD),
+    virtualBalances: {
+      virtualBtc,
+      virtualUsd
+    },
+    recentOrders
+  });
+});
 
 // --- API ROUTES ---
 app.get('/api/health', (_req, res) => {
