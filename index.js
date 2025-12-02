@@ -100,15 +100,17 @@ async function getATR(product = 'BTC-USD', hours = 12) {
     return 0;
   }
 }
-
 // --- SIGNING (Coinbase Advanced Trade) ---
 function signAdvancedTrade(method, path, body = '') {
   const timestamp = Math.floor(Date.now() / 1000).toString();
   const prehash = timestamp + method.toUpperCase() + path + body;
 
-  // Using secret as provided (no base64 decode) for AT keys
   const secret = COINBASE_API_SECRET;
-  const hmac = crypto.createHmac('sha256', secret).update(prehash).digest('hex');
+  // Coinbase-style: secret is base64, signature also base64
+  const key = Buffer.from(secret, 'base64');
+  const hmac = crypto.createHmac('sha256', key)
+    .update(prehash)
+    .digest('base64');
 
   return { timestamp, signature: hmac };
 }
