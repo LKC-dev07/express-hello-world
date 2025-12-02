@@ -108,34 +108,31 @@ function signAdvancedTrade(method, path, body = '') {
   return { timestamp, signature: hmac };
 }
 
-// --- COINBASE REQUEST WRAPPER ---
+// --- COINBASE REQUEST ---
 async function coinbaseRequest(method, path, bodyObj) {
-  const body = bodyObj ? JSON.stringify(bodyObj) : "";
+  const base = 'https://api.coinbase.com';
+  const body = bodyObj ? JSON.stringify(bodyObj) : '';
 
   const { timestamp, signature } = signAdvancedTrade(method, path, body);
 
   const headers = {
-    "Content-Type": "application/json",
-    "CB-ACCESS-KEY": COINBASE_API_KEY,
-    "CB-ACCESS-SIGN": signature,
-    "CB-ACCESS-TIMESTAMP": timestamp,
+    'Content-Type': 'application/json',
+    'CB-ACCESS-KEY': COINBASE_API_KEY,
+    'CB-ACCESS-SIGN': signature,
+    'CB-ACCESS-TIMESTAMP': timestamp
   };
 
-  if (COINBASE_API_PASSPHRASE) {
-    headers["CB-ACCESS-PASSPHRASE"] = COINBASE_API_PASSPHRASE;
-  }
-
-  const url = "https://api.coinbase.com" + path;
-
-  const r = await fetch(url, { method, headers, body });
+  const r = await fetch(base + path, {
+    method,
+    headers,
+    body: body || undefined
+  });
 
   const text = await r.text();
+
   let json;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    json = { raw: text };
-  }
+  try { json = JSON.parse(text); }
+  catch { json = { raw: text }; }
 
   if (!r.ok) {
     throw new Error(`Coinbase error ${r.status}: ${text}`);
@@ -143,7 +140,6 @@ async function coinbaseRequest(method, path, bodyObj) {
 
   return json;
 }
-
 
 // --- PAPER ORDER HELPER ---
 let virtualBtc = 0;
