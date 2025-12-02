@@ -277,6 +277,17 @@ app.post('/api/live-order', requireAdmin, async (req, res) => {
 
     const { product = 'BTC-USD', side = 'BUY', usd = 5 } = req.body;
 
+    if (usd <= 0) {
+      return res.status(400).json({ error: 'usd must be > 0' });
+    }
+
+    if (usd > Number(MAX_TRADE_USD)) {
+      return res.status(400).json({
+        error: 'usd exceeds MAX_TRADE_USD',
+        maxTradeUsd: Number(MAX_TRADE_USD)
+      });
+    }
+
     // safety check
     if (!allowed.has(product.toUpperCase())) {
       return res.status(400).json({ error: 'symbol not allowed' });
