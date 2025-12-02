@@ -7,40 +7,97 @@
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       margin: 40px;
+      background: #0b1020;
+      color: #f5f5f5;
     }
     h1 {
       text-align: center;
+      margin-bottom: 0.25rem;
     }
-    form {
-      max-width: 400px;
+    .mode {
+      font-size: 0.9rem;
+      color: #aaa;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .container {
+      max-width: 900px;
       margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 24px;
+      align-items: flex-start;
+    }
+    .card {
+      background: #151a2c;
+      border-radius: 8px;
+      padding: 16px 18px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.35);
     }
     label {
       display: block;
       margin-top: 10px;
+      font-size: 0.9rem;
     }
     input, select, button {
       margin-top: 4px;
-      padding: 4px 6px;
+      padding: 6px 8px;
       font-size: 14px;
+      border-radius: 4px;
+      border: 1px solid #33384d;
+      background: #0f1425;
+      color: #f5f5f5;
+    }
+    input::placeholder {
+      color: #666;
     }
     button {
+      cursor: pointer;
+      border: none;
+      background: #4263eb;
+      color: white;
+      font-weight: 500;
+      padding: 8px 12px;
       margin-right: 8px;
       margin-top: 12px;
     }
-    pre {
-      max-width: 600px;
-      margin: 20px auto;
-      background: #f5f5f5;
-      padding: 10px;
-      border-radius: 4px;
-      overflow-x: auto;
+    button.secondary {
+      background: #2b2f44;
     }
-    .mode {
-      font-size: 0.9rem;
-      color: #666;
-      text-align: center;
-      margin-bottom: 10px;
+    button.danger {
+      background: #e03131;
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+    pre {
+      background: #0f1425;
+      border-radius: 6px;
+      padding: 10px;
+      overflow-x: auto;
+      font-size: 12px;
+      line-height: 1.4;
+      border: 1px solid #22263a;
+    }
+    .section-title {
+      margin-bottom: 6px;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    .small {
+      font-size: 0.8rem;
+      color: #999;
+    }
+    .admin-box {
+      max-width: 900px;
+      margin: 0 auto 16px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .admin-box input {
+      flex: 1;
     }
   </style>
 </head>
@@ -50,51 +107,89 @@
     Mode: <span id="mode-label">loading…</span>
   </div>
 
-  <form id="trade-form">
-    <label>
-      Pair:
-      <select id="pair">
-        <option>BTC-USD</option>
-        <option>ETH-USD</option>
-      </select>
+  <!-- Admin token input (NOT stored in repo / env on client) -->
+  <div class="admin-box card">
+    <label style="flex:1;">
+      Admin token:
+      <input id="admin-token" type="password" placeholder="Enter CN_ADMIN_TOKEN to authorize actions" />
     </label>
+    <span class="small">Required for paper/live trades, status, and strategy controls.</span>
+  </div>
 
-    <label>
-      Side:
-      <select id="side">
-        <option>buy</option>
-        <option>sell</option>
-      </select>
-    </label>
+  <div class="container">
+    <!-- LEFT: Trade controls + result -->
+    <div class="card">
+      <div class="section-title">Manual Trade</div>
+      <form id="trade-form">
+        <label>
+          Pair:
+          <select id="pair">
+            <option>BTC-USD</option>
+            <option>ETH-USD</option>
+          </select>
+        </label>
 
-    <label>
-      Amount (USD):
-      <input id="amount" type="number" step="0.01" value="1" />
-    </label>
+        <label>
+          Side:
+          <select id="side">
+            <option>buy</option>
+            <option>sell</option>
+          </select>
+        </label>
 
-    <!-- Paper + Live buttons -->
-    <button type="submit" id="paper-btn">Simulate Trade</button>
-    <button type="button" id="live-btn">Live Trade</button>
-  </form>
+        <label>
+          Amount (USD):
+          <input id="amount" type="number" step="0.01" value="5" />
+        </label>
 
-  <pre id="result">{ }</pre>
-  <pre id="result">{ }</pre>
+        <div style="margin-top:12px;">
+          <button type="submit" id="paper-btn">Simulate Trade</button>
+          <button type="button" id="live-btn">Live Trade</button>
+        </div>
+      </form>
 
-  <h2>Status</h2>
-  <pre id="status-box">Loading…</pre>
+      <div style="margin-top:16px;">
+        <div class="section-title">Last Response</div>
+        <pre id="result">{ }</pre>
+      </div>
+    </div>
 
-  <h2>Strategy Control</h2>
-  <button type="button" id="strat-enable-btn">Enable Strategy</button>
-  <button type="button" id="strat-disable-btn">Disable Strategy</button>
-  <button type="button" id="strat-tick-btn">Run Strategy Once Now</button>
+    <!-- RIGHT: Status + strategy control -->
+    <div class="card">
+      <div class="section-title">Status</div>
+      <pre id="status-box">Loading…</pre>
+
+      <div style="margin-top:16px;">
+        <div class="section-title">Strategy Control</div>
+        <button type="button" id="strat-enable-btn" class="secondary">Enable Strategy</button>
+        <button type="button" id="strat-disable-btn" class="danger">Disable Strategy</button>
+        <button type="button" id="strat-tick-btn" class="secondary">Run Strategy Once Now</button>
+        <div class="small" style="margin-top:6px;">
+          Strategy currently only executes <b>paper</b> orders even in live mode.
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script>
     const resultEl = document.getElementById('result');
     const modeLabelEl = document.getElementById('mode-label');
     const statusBox = document.getElementById('status-box');
+    const adminTokenInput = document.getElementById('admin-token');
 
-    // IMPORTANT: for now this needs to match CN_ADMIN_TOKEN in your Render env
-    const adminToken = 'YOUR_ADMIN_TOKEN_HERE';
+    let adminToken = '';
+
+    adminTokenInput.addEventListener('input', (e) => {
+      adminToken = e.target.value.trim();
+    });
+
+    function requireTokenOrShowError() {
+      if (!adminToken) {
+        resultEl.textContent = 'Error: admin token is empty. Enter CN_ADMIN_TOKEN in the field above.';
+        return false;
+      }
+      return true;
+    }
 
     // --- MODE LABEL ---
     async function loadMode() {
@@ -111,6 +206,8 @@
     // --- PAPER TRADE HANDLER ---
     document.getElementById('trade-form').addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (!requireTokenOrShowError()) return;
+
       const product = document.getElementById('pair').value;
       const side    = document.getElementById('side').value;
       const usd     = Number(document.getElementById('amount').value);
@@ -127,6 +224,7 @@
 
         const json = await res.json();
         resultEl.textContent = JSON.stringify(json, null, 2);
+        refreshStatus();
       } catch (err) {
         resultEl.textContent = 'Paper error: ' + err.message;
       }
@@ -135,6 +233,8 @@
     // --- LIVE TRADE HANDLER ---
     document.getElementById('live-btn').addEventListener('click', async (e) => {
       e.preventDefault();
+      if (!requireTokenOrShowError()) return;
+
       const product = document.getElementById('pair').value;
       const side    = document.getElementById('side').value.toUpperCase();
       const usd     = Number(document.getElementById('amount').value);
@@ -151,6 +251,7 @@
 
         const json = await res.json();
         resultEl.textContent = JSON.stringify(json, null, 2);
+        refreshStatus();
       } catch (err) {
         resultEl.textContent = 'Live error: ' + err.message;
       }
@@ -158,6 +259,10 @@
 
     // --- STATUS POLLING ---
     async function refreshStatus() {
+      if (!adminToken) {
+        statusBox.textContent = 'Enter admin token to view status.';
+        return;
+      }
       try {
         const res = await fetch('/api/status', {
           headers: {
@@ -176,6 +281,7 @@
 
     // --- STRATEGY CONTROLS ---
     document.getElementById('strat-enable-btn').addEventListener('click', async () => {
+      if (!requireTokenOrShowError()) return;
       await fetch('/api/strategy/enabled', {
         method: 'POST',
         headers: {
@@ -188,6 +294,7 @@
     });
 
     document.getElementById('strat-disable-btn').addEventListener('click', async () => {
+      if (!requireTokenOrShowError()) return;
       await fetch('/api/strategy/enabled', {
         method: 'POST',
         headers: {
@@ -200,6 +307,7 @@
     });
 
     document.getElementById('strat-tick-btn').addEventListener('click', async () => {
+      if (!requireTokenOrShowError()) return;
       await fetch('/api/strategy/tick', {
         method: 'POST',
         headers: {
