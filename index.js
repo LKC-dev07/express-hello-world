@@ -17,7 +17,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 const {
   CN_ADMIN_TOKEN,
   PAPER_TRADING = 'true',
-  MAX_TRADE_USD = '100',
+  MAX_TRADE_USD = '500',
   ALLOWED_PRODUCTS = 'BTC-USD,ETH-USD',
 
   // Strategy
@@ -31,6 +31,8 @@ const {
 
 const allowed = new Set(ALLOWED_PRODUCTS.split(',').map(x => x.trim().toUpperCase()));
 const isPaper = PAPER_TRADING === 'true';
+
+let stratOverrideEnabled = null; // null = use env, boolean = override
 
 // --- AUTH ---
 function requireAdmin(req, res, next) {
@@ -362,9 +364,15 @@ function recordOrder(entry) {
 }
 
 // --- STRATEGY TICK ---
-async function strategyTick() {
+async function strategyTick(trigger = 'auto') {
   try {
-    if (STRAT_ENABLED !== 'true') return;
+    // use override if set, otherwise env
+    const stratIsEnabled = (stratOverrideEnabled !== null)
+      ? stratOverrideEnabled
+      : STRAT_ENABLED === 'true';
+
+    if (!stratIsEnabled) return;
+    // ... rest of strategyTick stays the same ...
 
     const symbol = (process.env.STRAT_CURRENCY || 'BTC-USD').toUpperCase();
     const buyUsd = Number(process.env.STRAT_BUY_AMOUNT_USD || '5');
@@ -467,6 +475,25 @@ async function strategyTick() {
 }
 
 setInterval(strategyTick, 15 * 60 * 1000);
+// toggle strategy on/off
+app.post('/api/strategy/enabled', requireAdmin, (req, res) => {
+  const { enabled } = req.body || {};
+  stratOverrideEnabled = Boolean(enabled);
+  res.json({
+    ok: true,
+    strategyEnabled: stratOverrideEnabled
+  });
+});
+
+// manual one-off tick
+app.post('/api/strategy/tick', requireAdmin, async (_req, res) => {
+  try {
+    await strategyTick('manual');
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // --- SERVE FRONTEND ---
 app.get('/', (_req, res) => {
