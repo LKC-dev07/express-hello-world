@@ -1,4 +1,3 @@
-
 import express from 'express';
 import fetch from 'node-fetch';
 import crypto from 'crypto';
@@ -24,10 +23,10 @@ const {
   // Strategy
   STRAT_ENABLED = 'false',
 
-  // Coinbase (live trading )
+  // Coinbase (live trading)
   COINBASE_API_KEY,
   COINBASE_API_SECRET,
-  COINBASE_API_PASSPHRASE
+  COINBASE_API_PASSPHRASE // not used for Advanced Trade but kept for now
 } = process.env;
 
 const allowed = new Set(ALLOWED_PRODUCTS.split(',').map(x => x.trim().toUpperCase()));
@@ -96,12 +95,13 @@ async function getATR(product = 'BTC-USD', hours = 12) {
     return 0;
   }
 }
+
 // --- SIGNING (Coinbase Advanced Trade) ---
 function signAdvancedTrade(method, path, body = '') {
   const timestamp = Math.floor(Date.now() / 1000).toString();
   const prehash = timestamp + method.toUpperCase() + path + body;
 
-  // DO NOT base64-decode the secret for Advanced Trade.
+  // Using secret as provided (no base64 decode) for AT keys
   const secret = COINBASE_API_SECRET;
   const hmac = crypto.createHmac('sha256', secret).update(prehash).digest('hex');
 
@@ -162,24 +162,40 @@ async function placePaperOrder(product = 'BTC-USD', side = 'buy', usd = 5) {
     throw new Error(`bad side ${side}`);
   }
 
+  const payload = {
+    mode: 'paper',
+    product,
+    side,
+    usd,
+    est_price: t.price,
+    est_qty: qty,
+    balances: {
+      virtualBtc,
+      virtualUsd
+    },
+    time: new Date().toISOString()
+  };
+
   console.log(
     `[AUTO PAPER] ${side.toUpperCase()} $${usd} @ ${t.price.toFixed(
       2
     )} qty=${qty}, balances: BTC=${virtualBtc.toFixed(6)}, USD=${virtualUsd.toFixed(2)}`
   );
+
+  return payload;
 }
 
 // --- LIVE ORDER HELPER ---
-async function placeLiveOrder(product = "BTC-USD", side = "buy", usd = 5) {
+async function placeLiveOrder(product = 'BTC-USD', side = 'buy', usd = 5) {
   if (!COINBASE_API_KEY || !COINBASE_API_SECRET) {
-    throw new Error("Missing Coinbase API credentials");
+    throw new Error('Missing Coinbase API credentials');
   }
 
-  const path = "/api/v3/brokerage/orders";
+  const path = '/api/v3/brokerage/orders';
 
   const body = {
     product_id: product,
-    side: side.toUpperCase(),  // BUY or SELL
+    side: side.toUpperCase(), // BUY or SELL
     order_configuration: {
       market_market_ioc: {
         quote_size: String(usd)
@@ -187,10 +203,10 @@ async function placeLiveOrder(product = "BTC-USD", side = "buy", usd = 5) {
     }
   };
 
-  const response = await coinbaseRequest("POST", path, body);
+  const response = await coinbaseRequest('POST', path, body);
 
   console.log(`[LIVE ORDER] ${side.toUpperCase()} $${usd} ${product}`);
-  console.log(`[LIVE ORDER RESPONSE]`, response);
+  console.log('[LIVE ORDER RESPONSE]', response);
 
   return response;
 }
@@ -209,8 +225,10 @@ app.post('/api/paper-order', requireAdmin, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 let lastBuyTimestamp = 0; // cooldown tracking
-// --- LIVE ORDER (Coinbase Advanced Trade) ---
+
+// --- LIVE ORDER ROUTE ---
 app.post('/api/live-order', requireAdmin, async (req, res) => {
   try {
     if (isPaper) {
@@ -224,44 +242,11 @@ app.post('/api/live-order', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'symbol not allowed' });
     }
 
-    // Construct the official AT API request body
-    const body = {
-      product_id: product,
-      side: side.toUpperCase(),         // BUY or SELL
-      order_configuration: {
-        market_market_ioc: {
-          quote_size: String(usd)       // amount in USD to spend
-        }
-      }
-    };
-
-    const result = await coinbaseRequest(
-      'POST',
-      '/api/v3/brokerage/orders',
-      body
-    );
-
-    console.log(`[LIVE ORDER] ${side.toUpperCase()} ${product} for $${usd} placed successfully.`);
-    res.json({ ok: true, placed: true, response: result });
-
-  } catch (err) {
-    console.log(`[LIVE ORDER ERROR] ${err.message}`);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// --- LIVE ORDER ROUTE ---
-app.post("/api/live-order", requireAdmin, async (req, res) => {
-  try {
-    if (isPaper) {
-      return res.status(400).json({ error: "PAPER_TRADING=true — cannot send live orders" });
-    }
-
-    const { product = "BTC-USD", side = "BUY", usd = 5 } = req.body;
-
     const out = await placeLiveOrder(product, side, usd);
 
-    res.json({ ok: true, response: out });
+    console.log(`[LIVE ORDER] ${side.toUpperCase()} ${product} for $${usd} placed successfully.`);
+    res.json({ ok: true, placed: true, response: out });
+
   } catch (err) {
     console.log(`[LIVE ORDER ERROR] ${err.message}`);
     res.status(500).json({ error: err.message });
@@ -315,33 +300,35 @@ async function strategyTick() {
     const extraBand = Number(process.env.STRAT_SELL_EXTRA_BAND_PCT || '0.5');
     const minBtc = Number(process.env.STRAT_MIN_VIRTUAL_BTC || '0.00001');
 
-// BUY on dips (respect cooldown)
-const cooldownSec = Number(process.env.STRAT_COOLDOWN_SEC || '1800');
-const nowSec = Math.floor(Date.now() / 1000);
+    const cooldownSec = Number(process.env.STRAT_COOLDOWN_SEC || '1800');
+    const nowSec = Math.floor(Date.now() / 1000);
 
-// has enough time passed since last buy?
-if (current <= lower) {
-  if (nowSec - lastBuyTimestamp < cooldownSec) {
-    console.log(
-      `[${now}] Cooldown active: last buy ${(
-        (nowSec - lastBuyTimestamp) / 60
-      ).toFixed(0)} min ago, need ${cooldownSec / 60} min`
-    );
-    return;
-  }
+    // BUY on dips (respect cooldown)
+    if (current <= lower) {
+      if (nowSec - lastBuyTimestamp < cooldownSec) {
+        console.log(
+          `[${now}] Cooldown active: last buy ${(
+            (nowSec - lastBuyTimestamp) / 60
+          ).toFixed(0)} min ago, need ${cooldownSec / 60} min`
+        );
+        return;
+      }
 
-  console.log(
-    `[${now}] RANGE BUY: ${current} <= ${lower.toFixed(
-      2
-    )}, buying $${buyUsd}`
-  );
+      console.log(
+        `[${now}] RANGE BUY: ${current} <= ${lower.toFixed(
+          2
+        )}, buying $${buyUsd}`
+      );
 
-  await placePaperOrder(symbol, 'buy', buyUsd);
+      // CURRENTLY: strategy stays in paper mode even if PAPER_TRADING=false
+      await placePaperOrder(symbol, 'buy', buyUsd);
+      // When you're ready for full automation, change that line to:
+      // if (isPaper) await placePaperOrder(symbol, 'buy', buyUsd);
+      // else await placeLiveOrder(symbol, 'buy', buyUsd);
 
-  // record time of this buy
-  lastBuyTimestamp = nowSec;
-  return;
-}
+      lastBuyTimestamp = nowSec;
+      return;
+    }
 
     // SELL skim only on strong highs
     if (
@@ -358,13 +345,13 @@ if (current <= lower) {
         ).toFixed(0)}% (~$${usdVal.toFixed(2)})`
       );
 
-      if (usdVal > 0) {
-        await placePaperOrder(symbol, 'sell', usdVal);
-      }
+      // Same story here: currently paper-only
+      await placePaperOrder(symbol, 'sell', usdVal);
+      // Later you can switch to live with the same if (isPaper) pattern.
+
       return;
     }
 
-    // NEUTRAL
     console.log(`[${now}] No action (conservative).`);
   } catch (err) {
     console.log(`[STRAT ERROR] ${err.message}`);
