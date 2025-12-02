@@ -20,8 +20,52 @@
       text-align: center;
       margin-bottom: 20px;
     }
+    .wide {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    .admin-card {
+      background: #2b2400;
+      border-radius: 8px;
+      padding: 16px 18px;
+      border: 1px solid #ffc82c;
+      margin-bottom: 20px;
+    }
+    .admin-card h2 {
+      margin: 0 0 6px 0;
+      font-size: 1.1rem;
+      color: #ffd43b;
+    }
+    .admin-card p {
+      margin: 2px 0;
+      font-size: 0.9rem;
+    }
+    .admin-card code {
+      background: #3b2f00;
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+    .admin-input-row {
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .admin-input-row label {
+      flex: 0 0 230px;
+      font-size: 0.9rem;
+    }
+    .admin-input-row input {
+      flex: 1;
+      padding: 6px 8px;
+      font-size: 14px;
+      border-radius: 4px;
+      border: 1px solid #ffc82c;
+      background: #0f1425;
+      color: #f5f5f5;
+    }
     .container {
-      max-width: 900px;
+      max-width: 1000px;
       margin: 0 auto;
       display: grid;
       grid-template-columns: 1.1fr 1fr;
@@ -89,16 +133,6 @@
       font-size: 0.8rem;
       color: #999;
     }
-    .admin-box {
-      max-width: 900px;
-      margin: 0 auto 16px;
-      display: flex;
-      gap: 12px;
-      align-items: center;
-    }
-    .admin-box input {
-      flex: 1;
-    }
   </style>
 </head>
 <body>
@@ -107,13 +141,33 @@
     Mode: <span id="mode-label">loading…</span>
   </div>
 
-  <!-- Admin token input (NOT stored in repo / env on client) -->
-  <div class="admin-box card">
-    <label style="flex:1;">
-      Admin token:
-      <input id="admin-token" type="password" placeholder="Enter CN_ADMIN_TOKEN to authorize actions" />
-    </label>
-    <span class="small">Required for paper/live trades, status, and strategy controls.</span>
+  <div class="wide">
+    <!-- 🔑 VERY CLEAR CN_ADMIN_TOKEN INPUT -->
+    <div class="admin-card">
+      <h2>STEP 1: Paste your <code>CN_ADMIN_TOKEN</code> here</h2>
+      <p>
+        Go to your Render service &rarr; <b>Environment</b> and find the variable
+        <code>CN_ADMIN_TOKEN</code>. Copy its value exactly and paste it in this box.
+      </p>
+      <p>
+        This token is required for:
+        <b>Simulate Trade</b>, <b>Live Trade</b>, <b>Status</b> and <b>Strategy</b> actions.
+      </p>
+      <div class="admin-input-row">
+        <label for="admin-token">
+          Admin token (value of <code>CN_ADMIN_TOKEN</code> from Render):
+        </label>
+        <input
+          id="admin-token"
+          type="password"
+          placeholder="Paste CN_ADMIN_TOKEN value from Render here"
+        />
+      </div>
+      <p class="small" style="margin-top:8px;">
+        If you see <code>{"error":"unauthorized"}</code> in responses, the value here
+        does <b>not</b> match your <code>CN_ADMIN_TOKEN</code> env var.
+      </p>
+    </div>
   </div>
 
   <div class="container">
@@ -179,13 +233,18 @@
 
     let adminToken = '';
 
+    // Whenever you type/paste in the CN_ADMIN_TOKEN field, we store it here
     adminTokenInput.addEventListener('input', (e) => {
       adminToken = e.target.value.trim();
     });
 
-    function requireTokenOrShowError() {
+    function requireTokenOrShowError(target = 'result') {
       if (!adminToken) {
-        resultEl.textContent = 'Error: admin token is empty. Enter CN_ADMIN_TOKEN in the field above.';
+        const el = target === 'status' ? statusBox : resultEl;
+        el.textContent =
+          'Error: admin token is empty.\n\n' +
+          'Go to Render → Environment → copy CN_ADMIN_TOKEN value\n' +
+          'and paste it into the big yellow box at the top of the page.';
         return false;
       }
       return true;
@@ -206,7 +265,7 @@
     // --- PAPER TRADE HANDLER ---
     document.getElementById('trade-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      if (!requireTokenOrShowError()) return;
+      if (!requireTokenOrShowError('result')) return;
 
       const product = document.getElementById('pair').value;
       const side    = document.getElementById('side').value;
@@ -233,7 +292,7 @@
     // --- LIVE TRADE HANDLER ---
     document.getElementById('live-btn').addEventListener('click', async (e) => {
       e.preventDefault();
-      if (!requireTokenOrShowError()) return;
+      if (!requireTokenOrShowError('result')) return;
 
       const product = document.getElementById('pair').value;
       const side    = document.getElementById('side').value.toUpperCase();
@@ -260,7 +319,9 @@
     // --- STATUS POLLING ---
     async function refreshStatus() {
       if (!adminToken) {
-        statusBox.textContent = 'Enter admin token to view status.';
+        statusBox.textContent =
+          'Enter the CN_ADMIN_TOKEN value from Render in the yellow box above\n' +
+          'to view status and recent orders.';
         return;
       }
       try {
@@ -281,7 +342,7 @@
 
     // --- STRATEGY CONTROLS ---
     document.getElementById('strat-enable-btn').addEventListener('click', async () => {
-      if (!requireTokenOrShowError()) return;
+      if (!requireTokenOrShowError('result')) return;
       await fetch('/api/strategy/enabled', {
         method: 'POST',
         headers: {
@@ -294,7 +355,7 @@
     });
 
     document.getElementById('strat-disable-btn').addEventListener('click', async () => {
-      if (!requireTokenOrShowError()) return;
+      if (!requireTokenOrShowError('result')) return;
       await fetch('/api/strategy/enabled', {
         method: 'POST',
         headers: {
@@ -307,7 +368,7 @@
     });
 
     document.getElementById('strat-tick-btn').addEventListener('click', async () => {
-      if (!requireTokenOrShowError()) return;
+      if (!requireTokenOrShowError('result')) return;
       await fetch('/api/strategy/tick', {
         method: 'POST',
         headers: {
