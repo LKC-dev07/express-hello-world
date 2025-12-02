@@ -29,7 +29,9 @@ const {
   COINBASE_API_PASSPHRASE // not used for Advanced Trade but kept for now
 } = process.env;
 
-const allowed = new Set(ALLOWED_PRODUCTS.split(',').map(x => x.trim().toUpperCase()));
+const allowed = new Set(
+  ALLOWED_PRODUCTS.split(',').map(x => x.trim().toUpperCase())
+);
 const isPaper = PAPER_TRADING === 'true';
 
 let stratOverrideEnabled = null; // null = use env, boolean = override
@@ -60,7 +62,8 @@ async function getHistoricPrice(product = 'BTC-USD', hours = 12) {
     const r = await fetch(url, { headers: { 'User-Agent': 'CN/1.0' } });
     if (!r.ok) throw new Error(`historic failed: ${r.status}`);
     const candles = await r.json();
-    if (!Array.isArray(candles) || !candles.length) throw new Error('no candle data');
+    if (!Array.isArray(candles) || !candles.length)
+      throw new Error('no candle data');
     const closes = candles.map(c => c[4]);
     return closes.reduce((a, b) => a + b, 0) / closes.length;
   } catch (err) {
@@ -133,8 +136,11 @@ async function coinbaseRequest(method, path, bodyObj) {
   const text = await r.text();
 
   let json;
-  try { json = JSON.parse(text); }
-  catch { json = { raw: text }; }
+  try {
+    json = JSON.parse(text);
+  } catch {
+    json = { raw: text };
+  }
 
   if (!r.ok) {
     throw new Error(`Coinbase error ${r.status}: ${text}`);
@@ -143,10 +149,17 @@ async function coinbaseRequest(method, path, bodyObj) {
   return json;
 }
 
-// --- PAPER ORDER HELPER ---
+// --- VIRTUAL BALANCES + ORDER TRACKING ---
 let virtualBtc = 0;
 let virtualUsd = 0;
+let recentOrders = [];
 
+function recordOrder(entry) {
+  recentOrders.push({ ...entry, time: new Date().toISOString() });
+  if (recentOrders.length > 50) recentOrders.shift();
+}
+
+// --- PAPER ORDER HELPER ---
 async function placePaperOrder(product = 'BTC-USD', side = 'buy', usd = 5) {
   const t = await getPublicTicker(product);
   let qty;
@@ -178,10 +191,21 @@ async function placePaperOrder(product = 'BTC-USD', side = 'buy', usd = 5) {
     time: new Date().toISOString()
   };
 
+  recordOrder({
+    mode: 'paper',
+    product,
+    side,
+    usd,
+    price: t.price,
+    qty
+  });
+
   console.log(
     `[AUTO PAPER] ${side.toUpperCase()} $${usd} @ ${t.price.toFixed(
       2
-    )} qty=${qty}, balances: BTC=${virtualBtc.toFixed(6)}, USD=${virtualUsd.toFixed(2)}`
+    )} qty=${qty}, balances: BTC=${virtualBtc.toFixed(
+      6
+    )}, USD=${virtualUsd.toFixed(2)}`
   );
 
   return payload;
@@ -207,33 +231,6 @@ async function placeLiveOrder(product = 'BTC-USD', side = 'buy', usd = 5) {
 
   const response = await coinbaseRequest('POST', path, body);
 
-  console.log(`[LIVE ORDER] ${side.toUpperCase()} $${usd} ${product}`);
-  console.log('[LIVE ORDER RESPONSE]', response);
-
-  return response;
-}
-  // NEW: track this order in memory
-  recordOrder({
-    mode: 'paper',
-    product,
-    side,
-    usd,
-    price: t.price,
-    qty
-  });
-
-  console.log(
-    `[AUTO PAPER] ${side.toUpperCase()} $${usd} @ ${t.price.toFixed(
-      2
-    )} qty=${qty}, balances: BTC=${virtualBtc.toFixed(6)}, USD=${virtualUsd.toFixed(2)}`
-  );
-
-  return payload;
-}
-// --- Record Order ---
-  const response = await coinbaseRequest('POST', path, body);
-
-  // NEW: track live order
   recordOrder({
     mode: 'live',
     product,
@@ -250,20 +247,6 @@ async function placeLiveOrder(product = 'BTC-USD', side = 'buy', usd = 5) {
 
   return response;
 }
-// --- API Status Route ---
-app.get('/api/status', requireAdmin, (_req, res) => {
-  res.json({
-    paper: isPaper,
-    strategyEnabled: STRAT_ENABLED === 'true',
-    allowedProducts: [...allowed],
-    maxTradeUsd: 500(MAX_TRADE_USD),
-    virtualBalances: {
-      virtualBtc,
-      virtualUsd
-    },
-    recentOrders
-  });
-});
 
 // --- API ROUTES ---
 app.get('/api/health', (_req, res) => {
@@ -286,7 +269,10 @@ let lastBuyTimestamp = 0; // cooldown tracking
 app.post('/api/live-order', requireAdmin, async (req, res) => {
   try {
     if (isPaper) {
-      return res.status(400).json({ error: 'paper mode enabled — set PAPER_TRADING=false to place live orders' });
+      return res.status(400).json({
+        error:
+          'paper mode enabled — set PAPER_TRADING=false to place live orders'
+      });
     }
 
     const { product = 'BTC-USD', side = 'BUY', usd = 5 } = req.body;
@@ -298,33 +284,46 @@ app.post('/api/live-order', requireAdmin, async (req, res) => {
 
     const out = await placeLiveOrder(product, side, usd);
 
-    console.log(`[LIVE ORDER] ${side.toUpperCase()} ${product} for $${usd} placed successfully.`);
+    console.log(
+      `[LIVE ORDER] ${side.toUpperCase()} ${product} for $${usd} placed successfully.`
+    );
     res.json({ ok: true, placed: true, response: out });
-
   } catch (err) {
     console.log(`[LIVE ORDER ERROR] ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 });
-// --- API Status Route ---
-let recentOrders = [];
 
-// helper to store last N orders
-function recordOrder(entry) {
-  recentOrders.push({ ...entry, time: new Date().toISOString() });
-  if (recentOrders.length > 50) recentOrders.shift();
-}
+// --- STATUS ROUTE ---
+app.get('/api/status', requireAdmin, (_req, res) => {
+  const strategyEnabled =
+    stratOverrideEnabled !== null
+      ? stratOverrideEnabled
+      : STRAT_ENABLED === 'true';
+
+  res.json({
+    paper: isPaper,
+    strategyEnabled,
+    allowedProducts: [...allowed],
+    maxTradeUsd: Number(MAX_TRADE_USD),
+    virtualBalances: {
+      virtualBtc,
+      virtualUsd
+    },
+    recentOrders
+  });
+});
 
 // --- STRATEGY TICK ---
 async function strategyTick(trigger = 'auto') {
   try {
     // use override if set, otherwise env
-    const stratIsEnabled = (stratOverrideEnabled !== null)
-      ? stratOverrideEnabled
-      : STRAT_ENABLED === 'true';
+    const stratIsEnabled =
+      stratOverrideEnabled !== null
+        ? stratOverrideEnabled
+        : STRAT_ENABLED === 'true';
 
     if (!stratIsEnabled) return;
-    // ... rest of strategyTick stays the same ...
 
     const symbol = (process.env.STRAT_CURRENCY || 'BTC-USD').toUpperCase();
     const buyUsd = Number(process.env.STRAT_BUY_AMOUNT_USD || '5');
@@ -376,7 +375,8 @@ async function strategyTick(trigger = 'auto') {
       if (nowSec - lastBuyTimestamp < cooldownSec) {
         console.log(
           `[${now}] Cooldown active: last buy ${(
-            (nowSec - lastBuyTimestamp) / 60
+            (nowSec - lastBuyTimestamp) /
+            60
           ).toFixed(0)} min ago, need ${cooldownSec / 60} min`
         );
         return;
@@ -427,7 +427,8 @@ async function strategyTick(trigger = 'auto') {
 }
 
 setInterval(strategyTick, 15 * 60 * 1000);
-// toggle strategy on/off
+
+// --- STRATEGY CONTROL ROUTES ---
 app.post('/api/strategy/enabled', requireAdmin, (req, res) => {
   const { enabled } = req.body || {};
   stratOverrideEnabled = Boolean(enabled);
@@ -437,7 +438,6 @@ app.post('/api/strategy/enabled', requireAdmin, (req, res) => {
   });
 });
 
-// manual one-off tick
 app.post('/api/strategy/tick', requireAdmin, async (_req, res) => {
   try {
     await strategyTick('manual');
