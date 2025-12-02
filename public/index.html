@@ -78,6 +78,13 @@
   </form>
 
   <pre id="result">{ }</pre>
+<h2>Status</h2>
+<pre id="status-box">Loading…</pre>
+
+<h2>Strategy Control</h2>
+<button type="button" id="strat-enable-btn">Enable Strategy</button>
+<button type="button" id="strat-disable-btn">Disable Strategy</button>
+<button type="button" id="strat-tick-btn">Run Strategy Once Now</button>
 
   <script>
     const resultEl = document.getElementById('result');
@@ -148,3 +155,57 @@
   </script>
 </body>
 </html>
+// === STATUS POLLING ===
+const statusBox = document.getElementById('status-box');
+
+async function refreshStatus() {
+  try {
+    const res = await fetch('/api/status', {
+      headers: {
+        'Authorization': 'Bearer ' + adminToken
+      }
+    });
+    const json = await res.json();
+    statusBox.textContent = JSON.stringify(json, null, 2);
+  } catch (err) {
+    statusBox.textContent = 'Status error: ' + err.message;
+  }
+}
+
+refreshStatus();
+setInterval(refreshStatus, 15000); // every 15 seconds
+
+// === STRATEGY CONTROLS ===
+document.getElementById('strat-enable-btn').addEventListener('click', async () => {
+  await fetch('/api/strategy/enabled', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + adminToken
+    },
+    body: JSON.stringify({ enabled: true })
+  });
+  await refreshStatus();
+});
+
+document.getElementById('strat-disable-btn').addEventListener('click', async () => {
+  await fetch('/api/strategy/enabled', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + adminToken
+    },
+    body: JSON.stringify({ enabled: false })
+  });
+  await refreshStatus();
+});
+
+document.getElementById('strat-tick-btn').addEventListener('click', async () => {
+  await fetch('/api/strategy/tick', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + adminToken
+    }
+  });
+  await refreshStatus();
+});
