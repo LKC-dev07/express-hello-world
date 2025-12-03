@@ -130,13 +130,20 @@ function buildCoinbaseJwt(method, path) {
     nonce: crypto.randomBytes(16).toString('hex')
   };
 
-  const token = jwt.sign(payload, keySecret, {
+  // 👇 NEW: turn the PEM string into an EC private key object
+  const privateKey = crypto.createPrivateKey({
+    key: keySecret,
+    format: 'pem'
+  });
+
+  const token = jwt.sign(payload, privateKey, {
     algorithm: 'ES256',
     header
   });
 
   return token;
 }
+
 
 // --- COINBASE REQUEST (uses JWT above) ---
 async function coinbaseRequest(method, path, bodyObj) {
