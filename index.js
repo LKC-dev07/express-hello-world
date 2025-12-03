@@ -46,7 +46,7 @@ function requireAdmin(req, res, next) {
 }
 
 // --- HELPERS ---
-async function getPublicTicker(product = 'BTC-USD') {
+async function getPublicTicker(product = 'BTC-USDC') {
   const url = `https://api.exchange.coinbase.com/products/${product}/ticker`;
   const r = await fetch(url, { headers: { 'User-Agent': 'CN/1.0' } });
   if (!r.ok) throw new Error(`ticker failed: ${r.status}`);
@@ -54,7 +54,7 @@ async function getPublicTicker(product = 'BTC-USD') {
   return { price: Number(j.price), bid: Number(j.bid), ask: Number(j.ask) };
 }
 
-async function getHistoricPrice(product = 'BTC-USD', hours = 12) {
+async function getHistoricPrice(product = 'BTC-USDC', hours = 12) {
   try {
     const end = new Date();
     const start = new Date(end.getTime() - hours * 3600 * 1000);
@@ -74,7 +74,7 @@ async function getHistoricPrice(product = 'BTC-USD', hours = 12) {
 }
 
 // ATR function
-async function getATR(product = 'BTC-USD', hours = 12) {
+async function getATR(product = 'BTC-USDC', hours = 12) {
   try {
     const gran = 3600;
     const url = `https://api.exchange.coinbase.com/products/${product}/candles?granularity=${gran}`;
@@ -202,7 +202,7 @@ function recordOrder(entry) {
 }
 
 // --- PAPER ORDER HELPER ---
-async function placePaperOrder(product = 'BTC-USD', side = 'buy', usd = 5) {
+async function placePaperOrder(product = 'BTC-USDC', side = 'buy', usd = 5) {
   const t = await getPublicTicker(product);
   let qty;
 
@@ -254,7 +254,7 @@ async function placePaperOrder(product = 'BTC-USD', side = 'buy', usd = 5) {
 }
 
 // --- LIVE ORDER HELPER ---
-async function placeLiveOrder(product = 'BTC-USD', side = 'buy', usd = 5) {
+async function placeLiveOrder(product = 'BTC-USDC', side = 'buy', usd = 5) {
   const path = '/api/v3/brokerage/orders';
 
   const body = {
@@ -293,7 +293,7 @@ app.get('/api/health', (_req, res) => {
 
 app.post('/api/paper-order', requireAdmin, async (req, res) => {
   try {
-    const { product = 'BTC-USD', side = 'buy', usd = 5 } = req.body;
+    const { product = 'BTC-USDC', side = 'buy', usd = 5 } = req.body;
     const out = await placePaperOrder(product, side, usd);
     res.json(out);
   } catch (err) {
@@ -313,7 +313,7 @@ app.post('/api/live-order', requireAdmin, async (req, res) => {
       });
     }
 
-    const { product = 'BTC-USD', side = 'BUY', usd = 5 } = req.body;
+    const { product = 'BTC-USDC', side = 'BUY', usd = 5 } = req.body;
 
     if (usd <= 0) {
       return res.status(400).json({ error: 'usd must be > 0' });
@@ -372,7 +372,7 @@ async function strategyTick(trigger = 'auto') {
 
     if (!stratIsEnabled) return;
 
-    const symbol = (process.env.STRAT_CURRENCY || 'BTC-USD').toUpperCase();
+    const symbol = (process.env.STRAT_CURRENCY || 'BTC-USDC').toUpperCase();
     const buyUsd = Number(process.env.STRAT_BUY_AMOUNT_USD || '5');
     const maWindow = Number(process.env.STRAT_MA_WINDOW_HOURS || '12');
 
