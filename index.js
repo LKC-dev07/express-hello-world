@@ -1,8 +1,8 @@
 import express from 'express';
 import fetch from 'node-fetch';
-import crypto from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getAuthHeaders } from '@coinbase/cdp-sdk/auth';
 
 const app = express();
 app.use(express.json());
@@ -23,10 +23,9 @@ const {
   // Strategy
   STRAT_ENABLED = 'false',
 
-  // Coinbase (live trading)
-  COINBASE_API_KEY,
-  COINBASE_API_SECRET,
-  COINBASE_API_PASSPHRASE // not used for Advanced Trade but kept for now
+  // Coinbase (live trading via CDP Secret API key)
+  COINBASE_API_KEY,   // this is your CDP apiKeyId (organizations/.../apiKeys/...)
+  COINBASE_API_SECRET // this is your EC PRIVATE KEY PEM
 } = process.env;
 
 const allowed = new Set(
@@ -36,7 +35,7 @@ const isPaper = PAPER_TRADING === 'true';
 
 let stratOverrideEnabled = null; // null = use env, boolean = override
 
-// --- AUTH ---
+// --- AUTH (our own admin token) ---
 function requireAdmin(req, res, next) {
   const hdr = req.headers.authorization || '';
   const tok = hdr.startsWith('Bearer ') ? hdr.slice(7) : '';
@@ -100,33 +99,32 @@ async function getATR(product = 'BTC-USD', hours = 12) {
     return 0;
   }
 }
-// --- SIGNING (Coinbase Advanced Trade) ---
-function signAdvancedTrade(method, path, body = '') {
-  const timestamp = Math.floor(Date.now() / 1000).toString();
-  const prehash = timestamp + method.toUpperCase() + path + body;
 
-  const secret = COINBASE_API_SECRET;
-  // Coinbase-style: secret is base64, signature also base64
-  const key = Buffer.from(secret, 'base64');
-  const hmac = crypto.createHmac('sha256', key)
-    .update(prehash)
-    .digest('base64');
-
-  return { timestamp, signature: hmac };
-}
-
-// --- COINBASE REQUEST ---
+// --- COINBASE REQUEST (CDP JWT via cdp-sdk) ---
 async function coinbaseRequest(method, path, bodyObj) {
+  if (!COINBASE_API_KEY || !COINBASE_API_SECRET) {
+    throw new Error('Missing Coinbase API credentials');
+  }
+
   const base = 'https://api.coinbase.com';
   const body = bodyObj ? JSON.stringify(bodyObj) : '';
 
-  const { timestamp, signature } = signAdvancedTrade(method, path, body);
+  // Generate auth headers using CDP SDK.
+  // NOTE: requestHost must match the host we call (api.coinbase.com)
+  const authHeaders = await getAuthHeaders({
+    apiKeyId: COINBASE_API_KEY,       // organizations/.../apiKeys/...
+    apiKeySecret: COINBASE_API_SECRET, // EC PRIVATE KEY PEM
+    requestMethod: method.toUpperCase(),
+    requestHost: 'api.coinbase.com',
+    requestPath: path,
+    requestBody: bodyObj || undefined,
+    // expiresIn: 120 // default is 120 seconds; optional
+  });
 
   const headers = {
     'Content-Type': 'application/json',
-    'CB-ACCESS-KEY': COINBASE_API_KEY,
-    'CB-ACCESS-SIGN': signature,
-    'CB-ACCESS-TIMESTAMP': timestamp
+    'Accept': 'application/json',
+    ...authHeaders
   };
 
   const r = await fetch(base + path, {
@@ -215,10 +213,6 @@ async function placePaperOrder(product = 'BTC-USD', side = 'buy', usd = 5) {
 
 // --- LIVE ORDER HELPER ---
 async function placeLiveOrder(product = 'BTC-USD', side = 'buy', usd = 5) {
-  if (!COINBASE_API_KEY || !COINBASE_API_SECRET) {
-    throw new Error('Missing Coinbase API credentials');
-  }
-
   const path = '/api/v3/brokerage/orders';
 
   const body = {
@@ -330,7 +324,6 @@ app.get('/api/status', requireAdmin, (_req, res) => {
 // --- STRATEGY TICK ---
 async function strategyTick(trigger = 'auto') {
   try {
-    // use override if set, otherwise env
     const stratIsEnabled =
       stratOverrideEnabled !== null
         ? stratOverrideEnabled
@@ -401,11 +394,8 @@ async function strategyTick(trigger = 'auto') {
         )}, buying $${buyUsd}`
       );
 
-      // CURRENTLY: strategy stays in paper mode even if PAPER_TRADING=false
+      // Strategy currently paper-only even in live mode
       await placePaperOrder(symbol, 'buy', buyUsd);
-      // When you're ready for full automation, change that line to:
-      // if (isPaper) await placePaperOrder(symbol, 'buy', buyUsd);
-      // else await placeLiveOrder(symbol, 'buy', buyUsd);
 
       lastBuyTimestamp = nowSec;
       return;
@@ -426,10 +416,7 @@ async function strategyTick(trigger = 'auto') {
         ).toFixed(0)}% (~$${usdVal.toFixed(2)})`
       );
 
-      // Same story here: currently paper-only
       await placePaperOrder(symbol, 'sell', usdVal);
-      // Later you can switch to live with the same if (isPaper) pattern.
-
       return;
     }
 
