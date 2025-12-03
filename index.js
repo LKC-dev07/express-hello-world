@@ -107,8 +107,13 @@ function buildCoinbaseJwt(method, path) {
     throw new Error('Missing Coinbase API credentials');
   }
 
-  const keyName = COINBASE_API_KEY;      // organizations/.../apiKeys/...
-  const keySecret = COINBASE_API_SECRET; // full PEM private key
+  const keyName = COINBASE_API_KEY; // organizations/.../apiKeys/...
+
+  // Handle both multiline PEM and \n-escaped PEM from env
+  let keySecret = COINBASE_API_SECRET;
+  if (keySecret.includes('\\n')) {
+    keySecret = keySecret.replace(/\\n/g, '\n');
+  }
 
   const requestMethod = method.toUpperCase();
   const requestHost = 'api.coinbase.com';
@@ -130,19 +135,26 @@ function buildCoinbaseJwt(method, path) {
     nonce: crypto.randomBytes(16).toString('hex')
   };
 
-  // 👇 NEW: turn the PEM string into an EC private key object
-  const privateKey = crypto.createPrivateKey({
-    key: keySecret,
-    format: 'pem'
-  });
+  try {
+    const privateKey = crypto.createPrivateKey({
+      key: keySecret,
+      format: 'pem'
+    });
 
-  const token = jwt.sign(payload, privateKey, {
-    algorithm: 'ES256',
-    header
-  });
+    const token = jwt.sign(payload, privateKey, {
+      algorithm: 'ES256',
+      header
+    });
 
-  return token;
+    return token;
+  } catch (e) {
+    console.error('Coinbase key parse error:', e.message);
+    throw new Error(
+      'Bad Coinbase private key format – confirm the key is ECDSA/ES256 and PEM copied exactly (with BEGIN/END EC PRIVATE KEY lines).'
+    );
+  }
 }
+
 
 
 // --- COINBASE REQUEST (uses JWT above) ---
