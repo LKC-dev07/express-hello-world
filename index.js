@@ -300,7 +300,8 @@ async function placeLiveOrder(
     throw new Error(`Unsupported side: ${side}`);
   }
 
-  const body = {
+   const body = {
+    client_order_id: crypto.randomUUID(),  // <-- NEW: always valid UUID
     product_id: product,
     side: upperSide, // BUY or SELL
     order_configuration
