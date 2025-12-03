@@ -1,381 +1,585 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8" />
   <title>Crypto Navigator Trade</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      margin: 40px;
-      background: #0b1020;
-      color: #f5f5f5;
+    :root {
+      --bg: #050816;
+      --panel: #0b1020;
+      --panel-light: #121930;
+      --accent: #3b82f6;
+      --accent-soft: rgba(59, 130, 246, 0.12);
+      --accent-danger: #ef4444;
+      --text: #e5e7eb;
+      --text-muted: #9ca3af;
+      --border: #1f2937;
+      --yellow: #facc15;
     }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+      background: radial-gradient(circle at top, #111827 0, #020617 55%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 32px 16px 64px;
+    }
+
     h1 {
       text-align: center;
-      margin-bottom: 0.25rem;
+      margin: 0 0 4px;
+      font-size: 2.1rem;
+      letter-spacing: 0.04em;
     }
+
     .mode {
-      font-size: 0.9rem;
-      color: #aaa;
       text-align: center;
-      margin-bottom: 20px;
-    }
-    .wide {
-      max-width: 1000px;
-      margin: 0 auto;
-    }
-    .admin-card {
-      background: #2b2400;
-      border-radius: 8px;
-      padding: 16px 18px;
-      border: 1px solid #ffc82c;
-      margin-bottom: 20px;
-    }
-    .admin-card h2 {
-      margin: 0 0 6px 0;
-      font-size: 1.1rem;
-      color: #ffd43b;
-    }
-    .admin-card p {
-      margin: 2px 0;
       font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-bottom: 24px;
     }
-    .admin-card code {
-      background: #3b2f00;
-      padding: 2px 4px;
+
+    .mode span {
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #16a34a22;
+      color: #bbf7d0;
+      border: 1px solid #16a34a66;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .admin-panel {
+      background: #0b1020;
+      border-radius: 12px;
+      padding: 16px 18px 18px;
+      border: 1px solid #facc1533;
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+      margin-bottom: 22px;
+    }
+
+    .admin-panel h2 {
+      margin: 0 0 6px;
+      font-size: 0.96rem;
+      color: var(--yellow);
+    }
+
+    .admin-panel p {
+      margin: 0 0 12px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .admin-panel code {
+      background: #111827;
+      padding: 2px 6px;
       border-radius: 4px;
+      font-size: 0.78rem;
+      color: var(--yellow);
     }
-    .admin-input-row {
-      margin-top: 10px;
+
+    .admin-row {
       display: flex;
       gap: 10px;
       align-items: center;
     }
-    .admin-input-row label {
-      flex: 0 0 230px;
-      font-size: 0.9rem;
-    }
-    .admin-input-row input {
+
+    .admin-row input {
       flex: 1;
-      padding: 6px 8px;
-      font-size: 14px;
-      border-radius: 4px;
-      border: 1px solid #ffc82c;
-      background: #0f1425;
-      color: #f5f5f5;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #020617;
+      color: var(--text);
+      font-size: 0.85rem;
     }
-    .container {
-      max-width: 1000px;
-      margin: 0 auto;
+
+    .admin-row button {
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid #4b5563;
+      background: #111827;
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      cursor: pointer;
+    }
+
+    .admin-row button:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .grid {
       display: grid;
-      grid-template-columns: 1.1fr 1fr;
-      gap: 24px;
-      align-items: flex-start;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.1fr);
+      gap: 18px;
     }
-    .card {
-      background: #151a2c;
-      border-radius: 8px;
-      padding: 16px 18px;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
     }
+
+    .panel {
+      background: var(--panel);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      padding: 14px 16px 16px;
+      box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 6px;
+    }
+
+    .panel-header h3 {
+      margin: 0;
+      font-size: 1.0rem;
+    }
+
+    .panel-header small {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
     label {
       display: block;
-      margin-top: 10px;
-      font-size: 0.9rem;
+      margin: 10px 0 4px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
     }
-    input, select, button {
-      margin-top: 4px;
-      padding: 6px 8px;
-      font-size: 14px;
-      border-radius: 4px;
-      border: 1px solid #33384d;
-      background: #0f1425;
-      color: #f5f5f5;
-    }
-    input::placeholder {
-      color: #666;
-    }
-    button {
-      cursor: pointer;
-      border: none;
-      background: #4263eb;
-      color: white;
-      font-weight: 500;
-      padding: 8px 12px;
-      margin-right: 8px;
-      margin-top: 12px;
-    }
-    button.secondary {
-      background: #2b2f44;
-    }
-    button.danger {
-      background: #e03131;
-    }
-    button:disabled {
-      opacity: 0.6;
-      cursor: default;
-    }
-    pre {
-      background: #0f1425;
+
+    select,
+    input[type="number"] {
+      width: 100%;
+      padding: 7px 9px;
       border-radius: 6px;
-      padding: 10px;
-      overflow-x: auto;
-      font-size: 12px;
-      line-height: 1.4;
-      border: 1px solid #22263a;
+      border: 1px solid #1f2937;
+      background: var(--panel-light);
+      color: var(--text);
+      font-size: 0.86rem;
     }
-    .section-title {
-      margin-bottom: 6px;
-      font-size: 1rem;
-      font-weight: 600;
+
+    select:focus,
+    input[type="number"]:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent-soft);
     }
-    .small {
+
+    .row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .row > div {
+      flex: 1;
+    }
+
+    .btn-row {
+      margin-top: 12px;
+      display: flex;
+      gap: 8px;
+    }
+
+    button.primary {
+      flex: 1;
+      padding: 7px 10px;
+      border-radius: 8px;
+      border: 1px solid #2563eb;
+      background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+      color: white;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    button.primary:hover {
+      filter: brightness(1.08);
+    }
+
+    button.secondary {
+      flex: 1;
+      padding: 7px 10px;
+      border-radius: 8px;
+      border: 1px solid #374151;
+      background: #111827;
+      color: var(--text);
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    button.secondary:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    button.danger {
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid #b91c1c;
+      background: #111827;
+      color: #fecaca;
       font-size: 0.8rem;
-      color: #999;
+      cursor: pointer;
+    }
+
+    button.danger:hover {
+      background: #7f1d1d;
+    }
+
+    pre {
+      margin: 10px 0 0;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: #020617;
+      border: 1px solid #111827;
+      font-size: 0.78rem;
+      color: #e5e7eb;
+      max-height: 260px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .muted {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .status-panel pre {
+      background: #020617;
+    }
+
+    .status-pill {
+      font-size: 0.72rem;
+      border-radius: 999px;
+      padding: 2px 7px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border: 1px solid #374151;
+      color: var(--text-muted);
+    }
+
+    .pill-on {
+      border-color: #22c55e66;
+      color: #bbf7d0;
+      background: #16653455;
+    }
+
+    .pill-off {
+      border-color: #f9737366;
+      color: #fecaca;
+      background: #7f1d1d55;
+    }
+
+    .strategy-footer {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    .strategy-footer strong {
+      color: #e5e7eb;
     }
   </style>
 </head>
 <body>
-  <h1>Crypto Navigator Trade</h1>
-  <div class="mode">
-    Mode: <span id="mode-label">loading…</span>
-  </div>
+  <div class="container">
+    <h1>Crypto Navigator Trade</h1>
+    <div class="mode">
+      Mode: <span>Live</span>
+    </div>
 
-  <div class="wide">
-    <!-- 🔑 VERY CLEAR CN_ADMIN_TOKEN INPUT -->
-    <div class="admin-card">
+    <!-- ADMIN TOKEN PANEL -->
+    <div class="admin-panel">
       <h2>STEP 1: Paste your <code>CN_ADMIN_TOKEN</code> here</h2>
       <p>
-        Go to your Render service &rarr; <b>Environment</b> and find the variable
-        <code>CN_ADMIN_TOKEN</code>. Copy its value exactly and paste it in this box.
+        Go to your Render service → <strong>Environment</strong> and find the
+        variable <code>CN_ADMIN_TOKEN</code>. Copy its value exactly and paste it
+        in this box. This token is required for: Simulate Trade, Live Trade,
+        Status and Strategy actions.
       </p>
-      <p>
-        This token is required for:
-        <b>Simulate Trade</b>, <b>Live Trade</b>, <b>Status</b> and <b>Strategy</b> actions.
-      </p>
-      <div class="admin-input-row">
-        <label for="admin-token">
-          Admin token (value of <code>CN_ADMIN_TOKEN</code> from Render):
-        </label>
+      <div class="admin-row">
         <input
           id="admin-token"
           type="password"
-          placeholder="Paste CN_ADMIN_TOKEN value from Render here"
+          placeholder="Admin token (value of CN_ADMIN_TOKEN from Render)"
         />
+        <button id="save-token-btn" type="button">Save</button>
       </div>
-      <p class="small" style="margin-top:8px;">
-        If you see <code>{"error":"unauthorized"}</code> in responses, the value here
-        does <b>not</b> match your <code>CN_ADMIN_TOKEN</code> env var.
+      <p class="muted">
+        If you see <code>{"error":"unauthorized"}</code> in responses, the value
+        here does <strong>not</strong> match your <code>CN_ADMIN_TOKEN</code>
+        env var.
       </p>
     </div>
-  </div>
 
-  <div class="container">
-    <!-- LEFT: Trade controls + result -->
-    <div class="card">
-      <div class="section-title">Manual Trade</div>
-      <form id="trade-form">
-        <label>
-          Pair:
-<select id="pair">
-  <option value="BTC-USDC">BTC-USDC</option>
-  <option value="ETH-USDC">ETH-USDC</option>
-</select>
-
-        </label>
-
-        <label>
-          Side:
-          <select id="side">
-            <option>buy</option>
-            <option>sell</option>
-          </select>
-        </label>
-
-<label for="amount">Amount (quote, e.g. USDC):</label>
-
-
-        <div style="margin-top:12px;">
-          <button type="submit" id="paper-btn">Simulate Trade</button>
-          <button type="button" id="live-btn">Live Trade</button>
+    <div class="grid">
+      <!-- LEFT: MANUAL TRADE -->
+      <div class="panel">
+        <div class="panel-header">
+          <h3>Manual Trade</h3>
+          <small>Mode: Live / Paper (backend)</small>
         </div>
-      </form>
 
-      <div style="margin-top:16px;">
-        <div class="section-title">Last Response</div>
+        <label for="pair">Pair:</label>
+        <select id="pair">
+          <option value="BTC-USDC">BTC-USDC</option>
+          <option value="ETH-USDC">ETH-USDC</option>
+        </select>
+
+        <div class="row">
+          <div>
+            <label for="side">Side:</label>
+            <select id="side">
+              <option value="buy">buy</option>
+              <option value="sell">sell</option>
+            </select>
+          </div>
+          <div>
+            <label for="amount">Amount (quote, e.g. USDC):</label>
+            <input
+              id="amount"
+              type="number"
+              min="0.0001"
+              step="0.0001"
+              value="5"
+            />
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button id="paper-btn" class="secondary" type="button">
+            Simulate Trade
+          </button>
+          <button id="live-btn" class="primary" type="button">
+            Live Trade
+          </button>
+        </div>
+
+        <div class="muted" style="margin-top: 6px;">
+          Live trades use Coinbase Advanced Trade with your API key.
+          Simulate trades only affect virtual balances.
+        </div>
+
+        <h4 style="margin: 14px 0 4px; font-size: 0.9rem;">Last Response</h4>
         <pre id="result">{ }</pre>
       </div>
-    </div>
 
-    <!-- RIGHT: Status + strategy control -->
-    <div class="card">
-      <div class="section-title">Status</div>
-      <pre id="status-box">Loading…</pre>
+      <!-- RIGHT: STATUS + STRATEGY -->
+      <div class="panel status-panel">
+        <div class="panel-header">
+          <h3>Status</h3>
+          <small id="status-mode-pill" class="status-pill">loading…</small>
+        </div>
+        <pre id="status-box">Loading…</pre>
 
-      <div style="margin-top:16px;">
-        <div class="section-title">Strategy Control</div>
-        <button type="button" id="strat-enable-btn" class="secondary">Enable Strategy</button>
-        <button type="button" id="strat-disable-btn" class="danger">Disable Strategy</button>
-        <button type="button" id="strat-tick-btn" class="secondary">Run Strategy Once Now</button>
-        <div class="small" style="margin-top:6px;">
-          Strategy currently only executes <b>paper</b> orders even in live mode.
+        <div style="margin-top: 10px; border-top: 1px solid #111827; padding-top: 10px;">
+          <div class="panel-header" style="margin-bottom: 8px;">
+            <h3>Strategy Control</h3>
+          </div>
+          <div class="btn-row" style="margin-top: 4px;">
+            <button id="strat-enable-btn" class="secondary" type="button">
+              Enable Strategy
+            </button>
+            <button id="strat-disable-btn" class="danger" type="button">
+              Disable Strategy
+            </button>
+          </div>
+          <div style="margin-top: 8px;">
+            <button id="strat-tick-btn" class="secondary" type="button">
+              Run Strategy Once Now
+            </button>
+          </div>
+          <p class="strategy-footer">
+            Strategy currently only executes <strong>paper</strong> orders,
+            even when live trading is enabled. Use it as a sandbox before
+            going fully automated.
+          </p>
         </div>
       </div>
     </div>
   </div>
 
   <script>
-    const resultEl = document.getElementById('result');
-    const modeLabelEl = document.getElementById('mode-label');
-    const statusBox = document.getElementById('status-box');
-    const adminTokenInput = document.getElementById('admin-token');
+    (function () {
+      const adminInput = document.getElementById('admin-token');
+      const saveTokenBtn = document.getElementById('save-token-btn');
+      const resultBox = document.getElementById('result');
+      const statusBox = document.getElementById('status-box');
+      const statusModePill = document.getElementById('status-mode-pill');
 
-    let adminToken = '';
-
-    // Whenever you type/paste in the CN_ADMIN_TOKEN field, we store it here
-    adminTokenInput.addEventListener('input', (e) => {
-      adminToken = e.target.value.trim();
-    });
-
-    function requireTokenOrShowError(target = 'result') {
-      if (!adminToken) {
-        const el = target === 'status' ? statusBox : resultEl;
-        el.textContent =
-          'Error: admin token is empty.\n\n' +
-          'Go to Render → Environment → copy CN_ADMIN_TOKEN value\n' +
-          'and paste it into the big yellow box at the top of the page.';
-        return false;
+      // Load stored admin token
+      let adminToken = localStorage.getItem('cn_admin_token') || '';
+      if (adminToken) {
+        adminInput.value = adminToken;
       }
-      return true;
-    }
 
-    // --- MODE LABEL ---
-    async function loadMode() {
-      try {
-        const res = await fetch('/api/health');
-        const data = await res.json();
-        modeLabelEl.textContent = data.paper ? 'Paper' : 'Live';
-      } catch (e) {
-        modeLabelEl.textContent = 'unknown (health error)';
-      }
-    }
-    loadMode();
-
-    // --- PAPER TRADE HANDLER ---
-    document.getElementById('trade-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      if (!requireTokenOrShowError('result')) return;
-
-      const product = document.getElementById('pair').value;
-      const side    = document.getElementById('side').value;
-      const usd     = Number(document.getElementById('amount').value);
-
-      try {
-        const res = await fetch('/api/paper-order', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + adminToken
-          },
-          body: JSON.stringify({ product, side, usd })
-        });
-
-        const json = await res.json();
-        resultEl.textContent = JSON.stringify(json, null, 2);
-        refreshStatus();
-      } catch (err) {
-        resultEl.textContent = 'Paper error: ' + err.message;
-      }
-    });
-
-    // --- LIVE TRADE HANDLER ---
-    document.getElementById('live-btn').addEventListener('click', async (e) => {
-      e.preventDefault();
-      if (!requireTokenOrShowError('result')) return;
-
-      const product = document.getElementById('pair').value;
-      const side    = document.getElementById('side').value.toUpperCase();
-      const usd     = Number(document.getElementById('amount').value);
-
-      try {
-        const res = await fetch('/api/live-order', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + adminToken
-          },
-          body: JSON.stringify({ product, side, usd })
-        });
-
-        const json = await res.json();
-        resultEl.textContent = JSON.stringify(json, null, 2);
-        refreshStatus();
-      } catch (err) {
-        resultEl.textContent = 'Live error: ' + err.message;
-      }
-    });
-
-    // --- STATUS POLLING ---
-    async function refreshStatus() {
-      if (!adminToken) {
-        statusBox.textContent =
-          'Enter the CN_ADMIN_TOKEN value from Render in the yellow box above\n' +
-          'to view status and recent orders.';
-        return;
-      }
-      try {
-        const res = await fetch('/api/status', {
-          headers: {
-            'Authorization': 'Bearer ' + adminToken
-          }
-        });
-        const json = await res.json();
-        statusBox.textContent = JSON.stringify(json, null, 2);
-      } catch (err) {
-        statusBox.textContent = 'Status error: ' + err.message;
-      }
-    }
-
-    refreshStatus();
-    setInterval(refreshStatus, 15000); // every 15 seconds
-
-    // --- STRATEGY CONTROLS ---
-    document.getElementById('strat-enable-btn').addEventListener('click', async () => {
-      if (!requireTokenOrShowError('result')) return;
-      await fetch('/api/strategy/enabled', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + adminToken
-        },
-        body: JSON.stringify({ enabled: true })
+      saveTokenBtn.addEventListener('click', () => {
+        adminToken = adminInput.value.trim();
+        localStorage.setItem('cn_admin_token', adminToken);
+        refreshStatus().catch(() => {});
       });
-      await refreshStatus();
-    });
 
-    document.getElementById('strat-disable-btn').addEventListener('click', async () => {
-      if (!requireTokenOrShowError('result')) return;
-      await fetch('/api/strategy/enabled', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + adminToken
-        },
-        body: JSON.stringify({ enabled: false })
-      });
-      await refreshStatus();
-    });
+      function authHeaders(extra) {
+        if (!adminToken) return extra || {};
+        return Object.assign({}, extra || {}, {
+          Authorization: 'Bearer ' + adminToken
+        });
+      }
 
-    document.getElementById('strat-tick-btn').addEventListener('click', async () => {
-      if (!requireTokenOrShowError('result')) return;
-      await fetch('/api/strategy/tick', {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + adminToken
+      function setResult(obj) {
+        try {
+          resultBox.textContent = JSON.stringify(obj, null, 2);
+        } catch {
+          resultBox.textContent = String(obj);
         }
-      });
-      await refreshStatus();
-    });
+      }
+
+      async function simulateTrade() {
+        try {
+          const product = document.getElementById('pair').value;
+          const side = document.getElementById('side').value;
+          const usd = Number(document.getElementById('amount').value);
+
+          const res = await fetch('/api/paper-order', {
+            method: 'POST',
+            headers: Object.assign(
+              {
+                'Content-Type': 'application/json'
+              },
+              authHeaders()
+            ),
+            body: JSON.stringify({ product, side, usd })
+          });
+
+          const json = await res.json();
+          setResult(json);
+        } catch (err) {
+          setResult({ error: err.message || String(err) });
+        }
+      }
+
+      async function liveTrade() {
+        try {
+          const product = document.getElementById('pair').value;
+          const side = document.getElementById('side').value.toUpperCase();
+          const usd = Number(document.getElementById('amount').value);
+
+          const res = await fetch('/api/live-order', {
+            method: 'POST',
+            headers: Object.assign(
+              {
+                'Content-Type': 'application/json'
+              },
+              authHeaders()
+            ),
+            body: JSON.stringify({ product, side, usd })
+          });
+
+          const json = await res.json();
+          setResult(json);
+        } catch (err) {
+          setResult({ error: err.message || String(err) });
+        }
+      }
+
+      async function refreshStatus() {
+        try {
+          const res = await fetch('/api/status', {
+            headers: authHeaders()
+          });
+          const json = await res.json();
+
+          statusBox.textContent = JSON.stringify(json, null, 2);
+
+          // status pill
+          if (json.paper) {
+            statusModePill.textContent = 'Paper mode';
+            statusModePill.className = 'status-pill pill-off';
+          } else {
+            statusModePill.textContent = 'Live mode';
+            statusModePill.className = 'status-pill pill-on';
+          }
+        } catch (err) {
+          statusBox.textContent =
+            'Status error: ' + (err.message || String(err));
+          statusModePill.textContent = 'error';
+          statusModePill.className = 'status-pill pill-off';
+        }
+      }
+
+      // Strategy controls
+      async function setStrategyEnabled(enabled) {
+        try {
+          const res = await fetch('/api/strategy/enabled', {
+            method: 'POST',
+            headers: Object.assign(
+              { 'Content-Type': 'application/json' },
+              authHeaders()
+            ),
+            body: JSON.stringify({ enabled: !!enabled })
+          });
+          const json = await res.json();
+          await refreshStatus();
+          setResult(json);
+        } catch (err) {
+          setResult({ error: err.message || String(err) });
+        }
+      }
+
+      async function runStrategyOnce() {
+        try {
+          const res = await fetch('/api/strategy/tick', {
+            method: 'POST',
+            headers: authHeaders()
+          });
+          const json = await res.json();
+          setResult(json);
+        } catch (err) {
+          setResult({ error: err.message || String(err) });
+        }
+      }
+
+      document
+        .getElementById('paper-btn')
+        .addEventListener('click', simulateTrade);
+      document
+        .getElementById('live-btn')
+        .addEventListener('click', liveTrade);
+      document
+        .getElementById('strat-enable-btn')
+        .addEventListener('click', () => setStrategyEnabled(true));
+      document
+        .getElementById('strat-disable-btn')
+        .addEventListener('click', () => setStrategyEnabled(false));
+      document
+        .getElementById('strat-tick-btn')
+        .addEventListener('click', runStrategyOnce);
+
+      // Initial status + polling
+      refreshStatus().catch(() => {});
+      setInterval(refreshStatus, 15000);
+    })();
   </script>
 </body>
 </html>
