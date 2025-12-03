@@ -19,7 +19,7 @@ const {
   CN_ADMIN_TOKEN,
   PAPER_TRADING = 'true',
   MAX_TRADE_USD = '500',
-  ALLOWED_PRODUCTS = 'BTC-USD,ETH-USD',
+  ALLOWED_PRODUCTS = 'BTC-USDC,ETH-USDC',
 
   // Strategy
   STRAT_ENABLED = 'false',
