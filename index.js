@@ -456,53 +456,56 @@ async function strategyTick(trigger = 'auto') {
     const cooldownSec = Number(process.env.STRAT_COOLDOWN_SEC || '1800');
     const nowSec = Math.floor(Date.now() / 1000);
 
-    // BUY on dips (paper-only)
-    if (current <= lower) {
-      if (nowSec - lastBuyTimestamp < cooldownSec) {
-        console.log(
-          `[${now}] Cooldown active: last buy ${(
-            (nowSec - lastBuyTimestamp) /
-            60
-          ).toFixed(0)} min ago, need ${cooldownSec / 60} min`
-        );
-        return;
-      }
-
-      console.log(
-        `[${now}] RANGE BUY: ${current} <= ${lower.toFixed(
-          2
-        )}, buying $${buyUsd}`
-      );
-
-      await placePaperOrder(symbol, 'buy', buyUsd);
-
-      lastBuyTimestamp = nowSec;
-      return;
-    }
-
-    // SELL skim only on strong highs (paper)
-    if (
-      sellEnabled &&
-      virtualBtc > minBtc &&
-      current >= upper * (1 + extraBand / 100)
-    ) {
-      const qty = virtualBtc * maxSellFrac;
-      const usdVal = qty * current;
-
-      console.log(
-        `[${now}] RANGE SELL: ${current} >= upper*(1+${extraBand}%), selling ~${(
-          maxSellFrac * 100
-        ).toFixed(0)}% (~$${usdVal.toFixed(2)})`
-      );
-
-      await placePaperOrder(symbol, 'sell', usdVal);
-      return;
-    }
-
-    console.log(`[${now}] No action (conservative).`);
-  } catch (err) {
-    console.log(`[STRAT ERROR] ${err.message}`);
+    // BUY on dips (live if not paper)
+if (current <= lower) {
+  if (nowSec - lastBuyTimestamp < cooldownSec) {
+    console.log(
+      `[${now}] Cooldown active: last buy ${(
+        (nowSec - lastBuyTimestamp) /
+        60
+      ).toFixed(0)} min ago, need ${cooldownSec / 60} min`
+    );
+    return;
   }
+
+  console.log(
+    `[${now}] RANGE BUY: ${current} <= ${lower.toFixed(
+      2
+    )}, buying $${buyUsd} (${isPaper ? 'PAPER' : 'LIVE'})`
+  );
+
+  if (isPaper) {
+    await placePaperOrder(symbol, 'buy', buyUsd);
+  } else {
+    await placeLiveOrder(symbol, 'buy', buyUsd);
+  }
+
+  lastBuyTimestamp = nowSec;
+  return;
+}
+
+// SELL skim only on strong highs (live if not paper)
+if (
+  sellEnabled &&
+  virtualBtc > minBtc &&
+  current >= upper * (1 + extraBand / 100)
+) {
+  const qty = virtualBtc * maxSellFrac;
+  const usdVal = qty * current;
+
+  console.log(
+    `[${now}] RANGE SELL: ${current} >= upper*(1+${extraBand}%), selling ~${(
+      maxSellFrac * 100
+    ).toFixed(0)}% (~$${usdVal.toFixed(2)}) (${isPaper ? 'PAPER' : 'LIVE'})`
+  );
+
+  if (isPaper) {
+    await placePaperOrder(symbol, 'sell', usdVal);
+  } else {
+    await placeLiveOrder(symbol, 'sell', usdVal);
+  }
+
+  return;
 }
 
 setInterval(strategyTick, 15 * 60 * 1000);
