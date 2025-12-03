@@ -1,8 +1,9 @@
 import express from 'express';
 import fetch from 'node-fetch';
+import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { getAuthHeaders } from '@coinbase/cdp-sdk/auth';
 
 const app = express();
 app.use(express.json());
@@ -23,9 +24,9 @@ const {
   // Strategy
   STRAT_ENABLED = 'false',
 
-  // Coinbase (live trading via CDP Secret API key)
-  COINBASE_API_KEY,   // this is your CDP apiKeyId (organizations/.../apiKeys/...)
-  COINBASE_API_SECRET // this is your EC PRIVATE KEY PEM
+  // Coinbase (live trading – Coinbase App / Advanced Trade)
+  COINBASE_API_KEY,   // organizations/.../apiKeys/...
+  COINBASE_API_SECRET // full EC PRIVATE KEY PEM
 } = process.env;
 
 const allowed = new Set(
@@ -100,31 +101,54 @@ async function getATR(product = 'BTC-USD', hours = 12) {
   }
 }
 
-// --- COINBASE REQUEST (CDP JWT via cdp-sdk) ---
-async function coinbaseRequest(method, path, bodyObj) {
+// --- JWT BUILDER (Coinbase App API Key Auth, JS snippet style) ---
+function buildCoinbaseJwt(method, path) {
   if (!COINBASE_API_KEY || !COINBASE_API_SECRET) {
     throw new Error('Missing Coinbase API credentials');
   }
 
+  const keyName = COINBASE_API_KEY;      // organizations/.../apiKeys/...
+  const keySecret = COINBASE_API_SECRET; // full PEM private key
+
+  const requestMethod = method.toUpperCase();
+  const requestHost = 'api.coinbase.com';
+  const requestPath = path;
+
+  const uri = `${requestMethod} ${requestHost}${requestPath}`;
+  const now = Math.floor(Date.now() / 1000);
+
+  const payload = {
+    iss: 'cdp',
+    nbf: now,
+    exp: now + 120, // 2 minutes
+    sub: keyName,
+    uri
+  };
+
+  const header = {
+    kid: keyName,
+    nonce: crypto.randomBytes(16).toString('hex')
+  };
+
+  const token = jwt.sign(payload, keySecret, {
+    algorithm: 'ES256',
+    header
+  });
+
+  return token;
+}
+
+// --- COINBASE REQUEST (uses JWT above) ---
+async function coinbaseRequest(method, path, bodyObj) {
   const base = 'https://api.coinbase.com';
   const body = bodyObj ? JSON.stringify(bodyObj) : '';
 
-  // Generate auth headers using CDP SDK.
-  // NOTE: requestHost must match the host we call (api.coinbase.com)
-  const authHeaders = await getAuthHeaders({
-    apiKeyId: COINBASE_API_KEY,       // organizations/.../apiKeys/...
-    apiKeySecret: COINBASE_API_SECRET, // EC PRIVATE KEY PEM
-    requestMethod: method.toUpperCase(),
-    requestHost: 'api.coinbase.com',
-    requestPath: path,
-    requestBody: bodyObj || undefined,
-    // expiresIn: 120 // default is 120 seconds; optional
-  });
+  const jwtToken = buildCoinbaseJwt(method, path);
 
   const headers = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
-    ...authHeaders
+    'Authorization': `Bearer ${jwtToken}`
   };
 
   const r = await fetch(base + path, {
@@ -134,7 +158,6 @@ async function coinbaseRequest(method, path, bodyObj) {
   });
 
   const text = await r.text();
-
   let json;
   try {
     json = JSON.parse(text);
@@ -284,7 +307,6 @@ app.post('/api/live-order', requireAdmin, async (req, res) => {
       });
     }
 
-    // safety check
     if (!allowed.has(product.toUpperCase())) {
       return res.status(400).json({ error: 'symbol not allowed' });
     }
@@ -344,7 +366,6 @@ async function strategyTick(trigger = 'auto') {
       return;
     }
 
-    // ATR & bands
     const atr = await getATR(symbol, maWindow);
     const atrPct = (atr / past) * 100;
     const mult = Number(process.env.STRAT_ATR_MULTIPLIER || '1.2');
@@ -367,7 +388,6 @@ async function strategyTick(trigger = 'auto') {
       )}, current=${current}`
     );
 
-    // SELL controls
     const sellEnabled = process.env.STRAT_SELL_ENABLED === 'true';
     const maxSellFrac = Number(process.env.STRAT_SELL_MAX_FRACTION || '0.2');
     const extraBand = Number(process.env.STRAT_SELL_EXTRA_BAND_PCT || '0.5');
@@ -376,7 +396,7 @@ async function strategyTick(trigger = 'auto') {
     const cooldownSec = Number(process.env.STRAT_COOLDOWN_SEC || '1800');
     const nowSec = Math.floor(Date.now() / 1000);
 
-    // BUY on dips (respect cooldown)
+    // BUY on dips (paper-only)
     if (current <= lower) {
       if (nowSec - lastBuyTimestamp < cooldownSec) {
         console.log(
@@ -394,14 +414,13 @@ async function strategyTick(trigger = 'auto') {
         )}, buying $${buyUsd}`
       );
 
-      // Strategy currently paper-only even in live mode
       await placePaperOrder(symbol, 'buy', buyUsd);
 
       lastBuyTimestamp = nowSec;
       return;
     }
 
-    // SELL skim only on strong highs
+    // SELL skim only on strong highs (paper)
     if (
       sellEnabled &&
       virtualBtc > minBtc &&
