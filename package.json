@@ -5,9 +5,10 @@
   "scripts": {
     "start": "node index.js"
   },
-"dependencies": {
-  "express": "^4.19.2",
-  "node-fetch": "^3.3.2",
-  "@coinbase/cdp-sdk": "*",
-  "jsonwebtoken": "*"
+  "dependencies": {
+    "express": "^4.19.2",
+    "node-fetch": "^3.3.2",
+    "@coinbase/cdp-sdk": "*",
+    "jsonwebtoken": "^9.0.2"
+  }
 }
