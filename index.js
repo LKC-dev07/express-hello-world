@@ -254,17 +254,42 @@ async function placePaperOrder(product = 'BTC-USDC', side = 'buy', usd = 5) {
 }
 
 // --- LIVE ORDER HELPER ---
-async function placeLiveOrder(product = 'BTC-USDC', side = 'buy', usd = 5) {
+async function placeLiveOrder(product = 'BTC-USDC', side = 'buy', quoteAmount = 5) {
   const path = '/api/v3/brokerage/orders';
+  const upperSide = side.toUpperCase();
+
+  let order_configuration;
+
+  if (upperSide === 'BUY') {
+    // For market BUYs, Coinbase allows quote_size (amount in USDC)
+    order_configuration = {
+      market_market_ioc: {
+        quote_size: String(quoteAmount)
+      }
+    };
+  } else if (upperSide === 'SELL') {
+    // For market SELLs, Coinbase requires base_size (amount in BTC)
+    // We treat quoteAmount as "how much USDC value you want to sell",
+    // then convert to BTC using the current ticker price.
+    const { price } = await getPublicTicker(product); // price = quote per 1 base
+    const baseSize = quoteAmount / price;            // BTC = USDC / (USDC per BTC)
+
+    // 8 decimal places is typical for BTC
+    const baseSizeStr = baseSize.toFixed(8);
+
+    order_configuration = {
+      market_market_ioc: {
+        base_size: baseSizeStr
+      }
+    };
+  } else {
+    throw new Error(`Unsupported side: ${side}`);
+  }
 
   const body = {
     product_id: product,
-    side: side.toUpperCase(), // BUY or SELL
-    order_configuration: {
-      market_market_ioc: {
-        quote_size: String(usd)
-      }
-    }
+    side: upperSide, // BUY or SELL
+    order_configuration
   };
 
   const response = await coinbaseRequest('POST', path, body);
@@ -272,19 +297,20 @@ async function placeLiveOrder(product = 'BTC-USDC', side = 'buy', usd = 5) {
   recordOrder({
     mode: 'live',
     product,
-    side,
-    usd,
+    side: upperSide,
+    usd: quoteAmount,
     responseSummary: {
       success: response.success,
       order_id: response.success ? response.order_id : undefined
     }
   });
 
-  console.log(`[LIVE ORDER] ${side.toUpperCase()} $${usd} ${product}`);
+  console.log(`[LIVE ORDER] ${upperSide} ${product} for ~${quoteAmount} quote (USDC)`);
   console.log('[LIVE ORDER RESPONSE]', response);
 
   return response;
 }
+
 
 // --- API ROUTES ---
 app.get('/api/health', (_req, res) => {
