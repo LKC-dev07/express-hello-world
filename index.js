@@ -363,4 +363,183 @@ app.post('/api/live-order', requireAdmin, async (req, res) => {
     if (usd > Number(MAX_TRADE_USD)) {
       return res.status(400).json({
         error: 'usd exceeds MAX_TRADE_USD',
-        maxTradeUsd: Number(MAX_TRA_
+        maxTradeUsd: Number(MAX_TRADE_USD)
+      });
+    }
+
+    if (!allowed.has(product.toUpperCase())) {
+      return res.status(400).json({ error: 'symbol not allowed' });
+    }
+
+    const out = await placeLiveOrder(product, side, usd);
+
+    console.log(
+      `[LIVE ORDER] ${side.toUpperCase()} ${product} for $${usd} placed successfully.`
+    );
+    res.json({ ok: true, placed: true, response: out });
+  } catch (err) {
+    console.log(`[LIVE ORDER ERROR] ${err.message}`);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- STATUS ROUTE ---
+app.get('/api/status', requireAdmin, (_req, res) => {
+  const strategyEnabled =
+    stratOverrideEnabled !== null
+      ? stratOverrideEnabled
+      : STRAT_ENABLED === 'true';
+
+  res.json({
+    paper: isPaper,
+    strategyEnabled,
+    allowedProducts: [...allowed],
+    maxTradeUsd: Number(MAX_TRADE_USD),
+    virtualBalances: {
+      virtualBtc,
+      virtualUsd
+    },
+    recentOrders
+  });
+});
+
+// --- STRATEGY TICK ---
+async function strategyTick(trigger = 'auto') {
+  try {
+    const stratIsEnabled =
+      stratOverrideEnabled !== null
+        ? stratOverrideEnabled
+        : STRAT_ENABLED === 'true';
+
+    if (!stratIsEnabled) return;
+
+    const symbol = (process.env.STRAT_CURRENCY || 'BTC-USDC').toUpperCase();
+    const buyUsd = Number(process.env.STRAT_BUY_AMOUNT_USD || '5');
+    const maWindow = Number(process.env.STRAT_MA_WINDOW_HOURS || '12');
+
+    const { price: current } = await getPublicTicker(symbol);
+    const past = await getHistoricPrice(symbol, maWindow);
+
+    const now = new Date().toISOString();
+    if (!past || isNaN(past)) {
+      console.log(`[${now}] ERROR: bad historic price`);
+      return;
+    }
+
+    const atr = await getATR(symbol, maWindow);
+    const atrPct = (atr / past) * 100;
+    const mult = Number(process.env.STRAT_ATR_MULTIPLIER || '1.2');
+    let bandPct = atrPct * mult;
+    const minPct = Number(process.env.STRAT_MIN_BAND_PCT || '1.0');
+    const maxPct = Number(process.env.STRAT_MAX_BAND_PCT || '5.0');
+    bandPct = Math.max(minPct, Math.min(maxPct, bandPct));
+
+    const lower = past * (1 - bandPct / 100);
+    const upper = past * (1 + bandPct / 100);
+
+    console.log(
+      `[${now}] MA=${past.toFixed(2)}, ATR%=${atrPct.toFixed(
+        2
+      )}, band=${bandPct.toFixed(2)}%`
+    );
+    console.log(
+      `[${now}] range lower=${lower.toFixed(2)}, upper=${upper.toFixed(
+        2
+      )}, current=${current}`
+    );
+
+    const sellEnabled = process.env.STRAT_SELL_ENABLED === 'true';
+    const maxSellFrac = Number(process.env.STRAT_SELL_MAX_FRACTION || '0.2');
+    const extraBand = Number(process.env.STRAT_SELL_EXTRA_BAND_PCT || '0.5');
+    const minBtc = Number(process.env.STRAT_MIN_VIRTUAL_BTC || '0.00001');
+
+    const cooldownSec = Number(process.env.STRAT_COOLDOWN_SEC || '1800');
+    const nowSec = Math.floor(Date.now() / 1000);
+
+    // BUY on dips (live if not paper)
+    if (current <= lower) {
+      if (nowSec - lastBuyTimestamp < cooldownSec) {
+        console.log(
+          `[${now}] Cooldown active: last buy ${(
+            (nowSec - lastBuyTimestamp) /
+            60
+          ).toFixed(0)} min ago, need ${cooldownSec / 60} min`
+        );
+        return;
+      }
+
+      console.log(
+        `[${now}] RANGE BUY: ${current} <= ${lower.toFixed(
+          2
+        )}, buying $${buyUsd} (${isPaper ? 'PAPER' : 'LIVE'})`
+      );
+
+      if (isPaper) {
+        await placePaperOrder(symbol, 'buy', buyUsd);
+      } else {
+        await placeLiveOrder(symbol, 'buy', buyUsd);
+      }
+
+      lastBuyTimestamp = nowSec;
+      return;
+    }
+
+    // SELL skim only on strong highs (live if not paper)
+    if (
+      sellEnabled &&
+      virtualBtc > minBtc &&
+      current >= upper * (1 + extraBand / 100)
+    ) {
+      const qty = virtualBtc * maxSellFrac;
+      const usdVal = qty * current;
+
+      console.log(
+        `[${now}] RANGE SELL: ${current} >= upper*(1+${extraBand}%), selling ~${(
+          maxSellFrac * 100
+        ).toFixed(0)}% (~$${usdVal.toFixed(2)}) (${isPaper ? 'PAPER' : 'LIVE'})`
+      );
+
+      if (isPaper) {
+        await placePaperOrder(symbol, 'sell', usdVal);
+      } else {
+        await placeLiveOrder(symbol, 'sell', usdVal);
+      }
+
+      return;
+    }
+
+    console.log(`[${now}] No action (conservative).`);
+  } catch (err) {
+    console.log(`[STRAT ERROR] ${err.message}`);
+  }
+}
+
+setInterval(strategyTick, 15 * 60 * 1000);
+
+// --- STRATEGY CONTROL ROUTES ---
+app.post('/api/strategy/enabled', requireAdmin, (req, res) => {
+  const { enabled } = req.body || {};
+  stratOverrideEnabled = Boolean(enabled);
+  res.json({
+    ok: true,
+    strategyEnabled: stratOverrideEnabled
+  });
+});
+
+app.post('/api/strategy/tick', requireAdmin, async (_req, res) => {
+  try {
+    await strategyTick('manual');
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- SERVE FRONTEND ---
+app.get('/', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// --- START SERVER ---
+const port = process.env.PORT || 10000;
+app.listen(port, () => console.log(`CN listening on :${port}`));
