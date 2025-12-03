@@ -20,6 +20,13 @@ const {
   PAPER_TRADING = 'true',
   MAX_TRADE_USD = '500',
   ALLOWED_PRODUCTS = 'BTC-USDC,ETH-USDC',
+  
+function normalizeProductForExchange(product) {
+  const p = (product || '').toUpperCase();
+  if (p === 'BTC-USDC') return 'BTC-USD';
+  if (p === 'ETH-USDC') return 'ETH-USD';
+  return p;
+}
 
   // Strategy
   STRAT_ENABLED = 'false',
@@ -46,19 +53,22 @@ function requireAdmin(req, res, next) {
 }
 
 // --- HELPERS ---
-async function getPublicTicker(product = 'BTC-USDC') {
-  const url = `https://api.exchange.coinbase.com/products/${product}/ticker`;
+async function getPublicTicker(product = 'BTC-USD') {
+  const exProduct = normalizeProductForExchange(product);
+  const url = `https://api.exchange.coinbase.com/products/${exProduct}/ticker`;
   const r = await fetch(url, { headers: { 'User-Agent': 'CN/1.0' } });
   if (!r.ok) throw new Error(`ticker failed: ${r.status}`);
   const j = await r.json();
   return { price: Number(j.price), bid: Number(j.bid), ask: Number(j.ask) };
 }
 
-async function getHistoricPrice(product = 'BTC-USDC', hours = 12) {
+
+async function getHistoricPrice(product = 'BTC-USD', hours = 12) {
+  const exProduct = normalizeProductForExchange(product);
   try {
     const end = new Date();
     const start = new Date(end.getTime() - hours * 3600 * 1000);
-    const url = `https://api.exchange.coinbase.com/products/${product}/candles?granularity=3600&start=${start.toISOString()}&end=${end.toISOString()}`;
+    const url = `https://api.exchange.coinbase.com/products/${exProduct}/candles?granularity=3600&start=${start.toISOString()}&end=${end.toISOString()}`;
     const r = await fetch(url, { headers: { 'User-Agent': 'CN/1.0' } });
     if (!r.ok) throw new Error(`historic failed: ${r.status}`);
     const candles = await r.json();
@@ -68,16 +78,17 @@ async function getHistoricPrice(product = 'BTC-USDC', hours = 12) {
     return closes.reduce((a, b) => a + b, 0) / closes.length;
   } catch (err) {
     console.log(`[WARN historic] ${err.message}`);
-    const { price } = await getPublicTicker(product);
+    const { price } = await getPublicTicker(exProduct);
     return price;
   }
 }
 
 // ATR function
-async function getATR(product = 'BTC-USDC', hours = 12) {
+async function getATR(product = 'BTC-USD', hours = 12) {
+  const exProduct = normalizeProductForExchange(product);
   try {
     const gran = 3600;
-    const url = `https://api.exchange.coinbase.com/products/${product}/candles?granularity=${gran}`;
+    const url = `https://api.exchange.coinbase.com/products/${exProduct}/candles?granularity=${gran}`;
     const r = await fetch(url, { headers: { 'User-Agent': 'CN/1.0' } });
     const candles = await r.json();
     if (!Array.isArray(candles) || candles.length < hours + 1)
@@ -100,6 +111,7 @@ async function getATR(product = 'BTC-USDC', hours = 12) {
     return 0;
   }
 }
+
 
 // --- JWT BUILDER (Coinbase App API Key Auth, JS snippet style) ---
 function buildCoinbaseJwt(method, path) {
