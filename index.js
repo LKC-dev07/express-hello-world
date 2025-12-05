@@ -515,7 +515,27 @@ async function strategyTick(trigger = 'auto') {
   }
 }
 
-setInterval(strategyTick, 15 * 60 * 1000);
+function startStrategyLoop() {
+  const intervalMs = 15 * 60 * 1000;
+
+  // Run once on startup
+  strategyTick('startup').catch(err => {
+    console.log(`[STRAT START ERROR] ${err.message}`);
+  });
+
+  setInterval(async () => {
+    try {
+      console.log(
+        `[${new Date().toISOString()}] STRAT TIMER fired (auto interval)`
+      );
+      await strategyTick('auto');
+    } catch (err) {
+      console.log(`[STRAT LOOP ERROR] ${err.message}`);
+    }
+  }, intervalMs);
+}
+
+startStrategyLoop();
 
 // --- STRATEGY CONTROL ROUTES ---
 app.post('/api/strategy/enabled', requireAdmin, (req, res) => {
